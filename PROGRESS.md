@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | **It is the production stylesheet.** Round 4: `Font_Diagnostic.epub` renders both embedded fonts correctly on the Paperwhite and `Genesis_Chapter_1.epub` does not — same fonts, same media types, same `@font-face` names, same delivery path. The fonts, the manifest and the pipeline are all exonerated. |
-| **Blocked on** | one device test. `output/CSS_Bisect.epub` is six pages of identical real markup differing only in which stylesheet they link; the pages that come out right name the culprit. |
+| **Status** | **The question is now whether a second embedded font is possible on this device at all.** Round 5: all six bisect pages came out square, the minimal stylesheet included — so comments, non-ASCII, break properties, borders and stylesheet size are all cleared too. One difference survives elimination: the only build that ever rendered Rashi set it on `body`; every build that failed sets it on a class. |
+| **Blocked on** | one device test. The rewritten `output/Font_Diagnostic.epub` tries ten ways to reach a second font from a biblical-font body, plus a second page that sets it on `body`. |
 | **Last session** | 2026-09-11 |
-| **Next action** | **(human)** sideload `output/CSS_Bisect.epub` (`python3 scripts/css_bisect.py` builds it), select Publisher Font, and report for each of the six pages whether the **commentary** is Rashi script or square. |
+| **Next action** | **(human)** sideload `output/Font_Diagnostic.epub` (`python3 scripts/font_diagnostic.py` builds it), select Publisher Font, and report per line whether it is Rashi or square — and for lines 7 and 8, whether it is big. |
 
 ---
 
@@ -112,52 +112,53 @@ reported.
 4. **`tools/` and `.venv/` are git-ignored.** `scripts/epubcheck.sh` downloads EPUBCheck
    into `tools/` on first use (needs Java). Kindle Previewer cannot be scripted in.
 
-**Font not reaching the Kindle — open, rounds 2–4 (2026-09-11).** Narrowed, round by round,
-to the production stylesheet.
+**A second embedded font is not reaching the Kindle — open, rounds 2–5 (2026-09-11).**
 
-*What has been ruled out.* The EPUB itself is sound — Apple Books applies both fonts
-correctly. The fonts reach the device: the Aa → Font menu offers "Publisher Font", which a
-Kindle only does for a book that actually carries embedded fonts, and it was selected. The
-delivery path is not stripping anything: the file went through Kindle Previewer, not Send
-to Kindle, so SPEC §3.1's predicted font loss is not what happened. And round 4 settled the
-rest — `Font_Diagnostic.epub` applies both fonts **correctly** on the same device, with the
-same font files, the same media types, the same `@font-face` family names and the same
-delivery path. The only thing it does differently is link a 968-byte, ASCII-only stylesheet
-instead of the 3.8 KB generated one.
+*Cleared so far.* The EPUB is sound (Apple Books applies both fonts). The fonts reach the
+device ("Publisher Font" is offered, which a Kindle only does for a book that carries
+embedded fonts, and it was selected). The delivery path strips nothing (Kindle Previewer,
+not Send to Kindle). And round 5 cleared the stylesheet's contents: **all six** pages of
+`css_bisect.py` rendered square, including the 730-byte minimal one — so comments,
+non-ASCII characters in comments, `break-*`, `thin solid` borders and sheet size are none of
+them the cause.
 
-*Three fixes shipped along the way*, each free whether or not it was the cause, and none of
-them sufficient: `application/vnd.ms-opentype` rather than `font/ttf` in the manifest;
-`format("truetype")` on each `@font-face src`; CSS family names changed to the fonts' own
-internal names (`"Taamey Frank CLM"`, `"Noto Rashi Hebrew"`), which `tests/test_fonts.py`
-now enforces. All three are defensible on their own terms and stay.
+*What survives elimination.* Exactly one difference between the single build that has ever
+rendered Rashi on the device and every build that has not:
 
-*The live suspects*, all in the generated stylesheet:
+```
+renders Rashi:  body { font-family: "Noto Rashi Hebrew"; }
+renders square: .commentary-text { font-family: "Noto Rashi Hebrew"; }
+```
 
-1. **Non-ASCII inside CSS comments.** The production stylesheet carries 26 of them — Hebrew
-   (ניקוד, טעמים), `§`, em dashes — and the working diagnostic carries none. A comment that
-   a byte-oriented parser mis-terminates would swallow every rule after it, and the first
-   such comment sits **above** the `@font-face` blocks, which would take the fonts down with
-   it. This is the leading candidate on the evidence.
-2. **Comments at all**, non-ASCII or not.
-3. **`break-inside` / `break-before` / `break-after`.** An unsupported declaration is
-   documented to make the KDF parser give up.
-4. **`border-top: thin solid`** — the `thin` keyword with no colour.
-5. **Stylesheet size or rule count** as such.
+*A correction to the round-4 reading.* That round's diagnostic was reported here and to the
+author as showing that every styling mechanism worked. It did not show that. Its `<body>`
+font *was* the Rashi font, so every line inherited Rashi whether or not its own class rule
+survived — the result was consistent with class rules being ignored entirely, and round 5
+says that is the likelier reading. The rewritten diagnostic sets `<body>` to the **biblical**
+font, so nothing can inherit its way to a pass.
 
-*`scripts/css_bisect.py` decides it.* Six pages, each carrying the identical real study
-unit for בראשית א׳:א׳ that the generator emits, differing only in the stylesheet linked:
-production unchanged (the control, expected to fail), minus all comments, comments kept but
-their non-ASCII scrubbed, minus the break properties, minus the borders, and a minimal
-fonts-only sheet (expected to pass). `.commentary-text` is the only rule that asks for Rashi
-script, so the tell needs no close reading: Rashi script means the rule survived, square
-means it was dropped. **Page 3 is also the candidate fix** — if it renders, the answer and
-its remedy arrive in the same test.
+*The two outcomes now on the table*, and they differ in what the project can promise:
 
-*Note for whoever reads the round-4 result:* the mechanism diagnostic sets the Rashi font on
-`<body>`, so a line could have inherited it even with its class rule dropped. It proves the
-fonts and `@font-face` work on the device; it does not prove class-level rules do. The
-bisect avoids that — there, body is the biblical font, so a dropped `.commentary-text`
-falls back to something visibly square.
+- **`font-family` is honoured only on `body`.** Then two fonts in one book are reachable
+  only by putting them in different XHTML files with different body fonts — which the
+  verse-by-verse reading model (SPEC §2) rules out, since verse and commentary interleave
+  within one chapter.
+- **One embedded font per book, full stop.** Then Rashi script is impossible on this device
+  and D3's answer is `rashi_script: false` — the commentary set in the biblical font and
+  distinguished by the divider, the smaller size and the bold dibur hamatchil, which is
+  exactly the escape hatch SPEC §15.2 provides for.
+
+Either way the current build is **degraded, not broken**: the one font that does apply is
+the biblical one, which is the font that matters — it is the one carrying ניקוד and טעמים,
+and the whole reason embedding was mandatory (SPEC §0). Line 0 against line 9 of the new
+diagnostic confirms whether even that much is landing.
+
+*Line 7 is the discriminator.* It sets `font-size: 2em` **and** the Rashi font in one class
+rule. Big and cursive means class rules work and something else is wrong. **Big and square
+means class rules are applied but `font-family` alone is overridden** — the one-font-per-book
+outcome. Small and square means class rules are dropped wholesale. *Page 2* then separates
+"only on `body`" from "only one font per book" by setting Rashi on the body of a second
+page in the same book.
 
 **Still open after that:** bold runs. `.verse-number` and `.dibur-hamatchil` ask for
 `font-weight: bold` with only Regular faces embedded, which on Kindle can fall back for
@@ -321,6 +322,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-11 (6) | 1 | Round 5: all six bisect pages square, the minimal stylesheet included — clearing comments, non-ASCII, `break-*`, borders and sheet size. One difference survives: every build that rendered Rashi set it on `body`; every build that failed sets it on a class. Recorded a correction — round 4's diagnostic put the Rashi font on `<body>`, so its lines could inherit a pass regardless of their class rules, and it did not prove what I reported it proved. Rewrote it: body is now the biblical font, ten mechanisms are tried against it, line 7 separates "class rules dropped" from "font-family overridden", and a second page sets Rashi on `body` to separate "only body works" from "one font per book". EPUBCheck 0/0; 161 tests pass. | **(human)** sideload the rewritten `output/Font_Diagnostic.epub` and report per line: Rashi or square, and big or not for 7 and 8. | 1. Line 7 — big and square, or big and cursive? 2. Page 2 — Rashi or square? 3. Do lines 0 and 9 look different from each other? If the answer is one font per book, D3 becomes `rashi_script: false` and SPEC §15 needs rewording. |
 | 2026-09-11 (5) | 1 | Round 4 was decisive by elimination: `Font_Diagnostic.epub` renders both fonts correctly on the Paperwhite while `Genesis_Chapter_1.epub` does not — identical fonts, media types, `@font-face` names and delivery path, differing only in the stylesheet. So the fault is the generated CSS, and the fonts, manifest and pipeline are all cleared. Built `scripts/css_bisect.py`: six pages of the identical real study unit, differing only in which stylesheet they link, one suspect removed per page. Leading candidate is the 26 non-ASCII characters in the production stylesheet's comments — the working diagnostic has none, and the first such comment sits above the `@font-face` blocks. EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/CSS_Bisect.epub` and report, per page, whether the commentary is Rashi script or square. | Which of the six pages render the commentary in Rashi script? Page 3 passing would be both the diagnosis and the fix. |
 | 2026-09-11 (4) | 1 | Round 3 narrowed the font failure: "Publisher Font" is offered and selected, and the glyphs are still wrong — so the fonts reached the device and the renderer is not matching them. Ruled out both cheap explanations. Third free fix shipped: CSS family names now equal the fonts' own internal names rather than invented labels, enforced by a test. Built `scripts/font_diagnostic.py`, a one-page EPUB that applies the same font eight different ways so one device test names the mechanism instead of another guessing round. Both EPUBs EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/Font_Diagnostic.epub` and report which numbered lines are not in Rashi script. | Which lines fail? That answers it — and tells us whether class-on-span styling survives KFX at all, which decides how the chapter template has to be written. |
 | 2026-09-11 (3) | 1 | Round 2 of the device test: correct in Apple Books, wrong font on the Kindle — so the EPUB is sound and the loss is in conversion or delivery. Shipped the two Kindle-compatibility fixes that are free either way: font manifest entries now use `application/vnd.ms-opentype` rather than `font/ttf`, and `@font-face src` carries `format("truetype")`. EPUBCheck still 0/0; 161 tests pass. Cause not yet identified — see "Font not reaching the Kindle" under Phase 1 notes. | **(human)** the two free checks: is "Publisher Font" offered and selected, and which delivery path was used. If Kindle Previewer can be run locally, that settles it in one go. | 1. Does Aa → Font list "Publisher Font"? If it is not even offered, the fonts were dropped in conversion. 2. Calibre KFX or Send to Kindle? |
