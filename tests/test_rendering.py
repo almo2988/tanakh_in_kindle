@@ -179,6 +179,43 @@ def test_css_declares_both_font_families(config) -> None:
     assert f'@font-face {{\n  font-family: "{config.rashi_font.family}";' in css
 
 
+def test_no_font_stack_names_two_embedded_families(config) -> None:
+    """The one rule the Paperwhite would not honour, found after six rounds of device
+    testing: `.commentary-text` named both embedded families, every other rule named one
+    embedded family plus a generic, and it was the only rule that failed. SPEC §16 writes
+    the two-family stack; SPEC §0 says the device decides."""
+    import dataclasses
+
+    families = {config.biblical_font.family, config.rashi_font.family}
+    for rashi_script in (True, False):
+        variant = dataclasses.replace(
+            config, typography=dataclasses.replace(config.typography, rashi_script=rashi_script)
+        )
+        for line in render_css(variant).splitlines():
+            if "font-family" not in line:
+                continue
+            named = [family for family in families if f'"{family}"' in line]
+            assert len(named) <= 1, f"two embedded families in one stack: {line.strip()}"
+
+
+def test_every_font_stack_ends_in_a_generic_fallback(config) -> None:
+    """A single embedded family is fine only because a generic catches anything it lacks —
+    and tests/test_fonts.py proves it lacks nothing in the actual text.
+
+    `@font-face` blocks are skipped: there `font-family` names the face being declared,
+    not a stack to fall back through.
+    """
+    in_font_face = False
+    for line in render_css(config).splitlines():
+        stripped = line.strip()
+        if stripped.startswith("@font-face"):
+            in_font_face = True
+        elif stripped == "}":
+            in_font_face = False
+        elif "font-family" in stripped and not in_font_face:
+            assert stripped.rstrip(";").endswith(("serif", "sans-serif")), stripped
+
+
 def test_font_face_src_carries_a_format_hint(config) -> None:
     """Some converters skip a face whose format they would have to guess at."""
     assert render_css(config).count('format("truetype")') == 2

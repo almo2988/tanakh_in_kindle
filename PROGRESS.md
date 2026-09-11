@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | **Probably one font for all Hebrew, chosen by the device, not by us.** Round 6: Hebrew rendered in an embedded font while **Bookerly** was selected and "Publisher Font" was not offered at all. Bookerly has no Hebrew glyphs, so the Kindle was reaching for an embedded font to draw Hebrew — meaning font choice for Hebrew is its script-fallback logic, not our CSS. |
-| **Blocked on** | one device test, cut down to two yes/no questions. |
+| **Status** | **Cause found: two embedded families in one `font-family` stack.** Round 7's diagnostic applies a second font correctly on the device — and the only structural difference from the failing book is that its rule names one embedded family plus a generic, where `.commentary-text` named two. That was the single rule in the whole stylesheet naming two, and the single rule that failed. Fixed and rebuilt. |
+| **Blocked on** | confirmation on the device. |
 | **Last session** | 2026-09-11 |
-| **Next action** | **(human)** sideload `output/Font_Diagnostic.epub` (`python3 scripts/font_diagnostic.py` builds it). Two pages, two paragraphs each, same words. Report only: **on each page, do the two paragraphs look the same or different?** |
+| **Next action** | **(human)** sideload the rebuilt `output/Genesis_Chapter_1.epub`. Is the commentary in Rashi script? If yes, D2/D3/D4 can all be settled and the Phase 1 device table finished. |
 
 ---
 
@@ -112,56 +112,48 @@ reported.
 4. **`tools/` and `.venv/` are git-ignored.** `scripts/epubcheck.sh` downloads EPUBCheck
    into `tools/` on first use (needs Java). Kindle Previewer cannot be scripted in.
 
-**A second embedded font is not reaching the Kindle — open, rounds 2–6 (2026-09-11).**
+**The embedded commentary font — found, rounds 2–7 (2026-09-11).**
 
-*Cleared, in order.* The EPUB is sound (Apple Books applies both fonts). The fonts reach the
-device. The delivery path strips nothing (Kindle Previewer, not Send to Kindle). And all six
-pages of `css_bisect.py` rendered square including the 730-byte minimal sheet, which clears
-comments, non-ASCII characters, `break-*`, `thin solid` borders and stylesheet size
-together.
+**Cause: a `font-family` stack naming two embedded families.** The Paperwhite honours
+`"Noto Rashi Hebrew", serif` and does not honour
+`"Noto Rashi Hebrew", "Taamey Frank CLM", serif`. `.commentary-text` was the only rule in
+the stylesheet naming two embedded families, and the only rule that failed; every other
+rule names one plus a generic and worked throughout. That single fact fits every
+observation from every round, including the ones that looked contradictory at the time.
 
-*Round 6 reframed it.* Hebrew rendered in an embedded font while **Bookerly** was the
-selected font and "Publisher Font" was **not offered at all**. Bookerly carries no Hebrew,
-so the device was falling back to an embedded font simply to draw the script. If that is the
-mechanism, then font choice for Hebrew has never been ours to make through CSS: the renderer
-picks one font that covers the script and uses it for all of it, and `.commentary-text`
-never had a say. That also explains every earlier result at once — Rashi appeared exactly
-when Rashi was the `body` font, because that is the font the fallback landed on.
+**The fix.** `render_css` now emits one embedded family per stack, always followed by a
+generic. Two tests hold it there: no stack may name two embedded families, and every stack
+must end in a generic.
 
-*Three fixes shipped over rounds 2–3*, each free, none sufficient, all defensible and kept:
-`application/vnd.ms-opentype` in the manifest; `format("truetype")` on each `@font-face src`;
-CSS family names changed to the fonts' own internal names, enforced by `tests/test_fonts.py`.
+Nothing is lost by dropping the middle entry. It was there so a character missing from the
+Rashi font would fall back to the biblical one, and `tests/test_fonts.py` already proves no
+such character exists — it checks the embedded font's cmap against the actual text on every
+run, which is what makes the intermediate fallback redundant rather than merely absent.
 
-*A correction, recorded in full.* Round 4's diagnostic was reported as showing that every
-styling mechanism worked. It did not: its `<body>` font was the Rashi font, so every line
-inherited Rashi whether or not its own class rule survived. Round 5 contradicted it and the
-later reading is the right one. The lesson was not only the confound — the diagnostic asked
-for a per-line reading of ten mechanisms, which is more than a device test should demand of
-anyone, and the flaw hid inside that noise. The current one asks two questions.
+**This contradicts `SPEC.md` §16**, which writes the stack as
+`"Rashi", "BiblicalHebrew", serif`. SPEC §0 settles it in the device's favour, and §16
+should be amended to say: one embedded family per stack, then a generic.
 
-*The test now.* Two pages, two paragraphs each, the same words. Page 1 defaults to Rashi and
-its second paragraph asks for the square font; page 2 is the reverse. One thing to report
-per page: do the paragraphs look the **same** or **different**?
+*What the hunt cost, and why.* Six rounds, three of them spent on fixes that were free but
+not the cause — the manifest media type, the `format()` hint, the family names. All three
+are defensible and stay. Two things went wrong in the method and are worth not repeating:
 
-- **Different on both** → two fonts work per element, our CSS approach is sound, and the
-  fault is somewhere not yet examined.
-- **Same on both** → one font for all Hebrew in the book, picked by the device. Rashi script
-  becomes impossible here and **D3's answer is `rashi_script: false`** — commentary in the
-  biblical font, distinguished by the divider, the smaller size and the bold dibur hamatchil,
-  which is the escape hatch SPEC §15.2 exists for. **SPEC §15's two-font premise would then
-  need rewording**, and `rashi_script: false` should also stop *embedding* the unused Rashi
-  font, since under this constraint a second embedded font is not inert — it is a second
-  candidate for a fallback we do not control.
+1. **Round 4's diagnostic was reported as proving more than it did.** Its `<body>` font was
+   the Rashi font, so every line inherited a pass regardless of its own rule. A diagnostic
+   whose default already satisfies the thing under test cannot fail informatively.
+2. **The CSS bisect varied everything except the one line that mattered.** All six pages
+   kept `.commentary-text` verbatim, which is exactly why all six looked identical — the
+   result that read as "nothing helps" was really "the variable was never varied".
 
-*Either way the current build is degraded, not broken.* The font that applies is the biblical
-one, which is the one carrying ניקוד and טעמים and the entire reason embedding was mandatory
-(SPEC §0).
+What finally worked was inverting the question — asking a rule that *did* work to do the
+job, rather than asking the failing rule to stop failing — and reducing the report to one
+yes/no per page. The earlier per-line formats asked more of a device test than anyone
+should have to give, and that is where the flaw hid.
 
-**Still open after that:** bold runs. `.verse-number` and `.dibur-hamatchil` ask for
-`font-weight: bold` with only Regular faces embedded, which on Kindle can fall back for those
-runs. If bold faces are ever added, note that Taamey Frank CLM's Bold variant has its
-**טעמים made transparent** by design — harmless only as long as no vocalised biblical text is
-ever bold.
+**Still open:** bold runs. `.verse-number` and `.dibur-hamatchil` ask for `font-weight:
+bold` with only Regular faces embedded, which on Kindle can fall back for those runs. If
+bold faces are ever added, note that Taamey Frank CLM's Bold variant has its **טעמים made
+transparent** by design — harmless only as long as no vocalised biblical text is ever bold.
 
 **Parked: expandable commentary (D9).** Round 1 of the device test raised a new
 requirement — Rashi should open on a tap rather than sit in the flow, "like the Sefaria
@@ -319,6 +311,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-11 (8) | 1 | **Cause found.** Round 7's two-paragraph diagnostic applies a second embedded font correctly on the device. Its rule names one embedded family plus a generic; `.commentary-text` named two — the only such rule in the stylesheet, and the only one that failed. `render_css` now emits one embedded family per stack followed by a generic, with two tests holding it there. Contradicts SPEC §16, which §0 settles in the device's favour. Rebuilt: EPUBCheck 0/0, 163 tests pass. | **(human)** confirm on the device that the commentary is now Rashi script; then D2/D3/D4 and the Phase 1 device table can all be closed. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 to "one embedded family per stack, then a generic"? 3. D9, the expandable commentary, is still parked — say when. |
 | 2026-09-11 (7) | 1 | Round 6 produced the fact that reframes the whole hunt: Hebrew rendered in an embedded font while Bookerly was selected and "Publisher Font" was not offered. Bookerly has no Hebrew, so the device was falling back to an embedded font to draw the script at all — font choice for Hebrew looks like its fallback logic, not our CSS, which would explain every earlier result (Rashi appeared exactly when Rashi was the `body` font). Cut the diagnostic down from ten mechanisms to two pages of two paragraphs and one yes/no question each, because the per-line format is what let round 4's flaw hide. EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/Font_Diagnostic.epub`; report per page whether the two paragraphs look the same or different. | Same on both pages means one font for all Hebrew: D3 becomes `rashi_script: false`, SPEC §15's two-font premise needs rewording, and the unused Rashi font should stop being embedded rather than sit there as a second fallback candidate. |
 | 2026-09-11 (6) | 1 | Round 5: all six bisect pages square, the minimal stylesheet included — clearing comments, non-ASCII, `break-*`, borders and sheet size. One difference survives: every build that rendered Rashi set it on `body`; every build that failed sets it on a class. Recorded a correction — round 4's diagnostic put the Rashi font on `<body>`, so its lines could inherit a pass regardless of their class rules, and it did not prove what I reported it proved. Rewrote it: body is now the biblical font, ten mechanisms are tried against it, line 7 separates "class rules dropped" from "font-family overridden", and a second page sets Rashi on `body` to separate "only body works" from "one font per book". EPUBCheck 0/0; 161 tests pass. | **(human)** sideload the rewritten `output/Font_Diagnostic.epub` and report per line: Rashi or square, and big or not for 7 and 8. | 1. Line 7 — big and square, or big and cursive? 2. Page 2 — Rashi or square? 3. Do lines 0 and 9 look different from each other? If the answer is one font per book, D3 becomes `rashi_script: false` and SPEC §15 needs rewording. |
 | 2026-09-11 (5) | 1 | Round 4 was decisive by elimination: `Font_Diagnostic.epub` renders both fonts correctly on the Paperwhite while `Genesis_Chapter_1.epub` does not — identical fonts, media types, `@font-face` names and delivery path, differing only in the stylesheet. So the fault is the generated CSS, and the fonts, manifest and pipeline are all cleared. Built `scripts/css_bisect.py`: six pages of the identical real study unit, differing only in which stylesheet they link, one suspect removed per page. Leading candidate is the 26 non-ASCII characters in the production stylesheet's comments — the working diagnostic has none, and the first such comment sits above the `@font-face` blocks. EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/CSS_Bisect.epub` and report, per page, whether the commentary is Rashi script or square. | Which of the six pages render the commentary in Rashi script? Page 3 passing would be both the diagnosis and the fix. |

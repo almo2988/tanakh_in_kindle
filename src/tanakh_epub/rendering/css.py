@@ -15,6 +15,10 @@ Constraints, all from the device:
   the ratios (§14).
 * ``break-inside``/``break-before`` are hints. Kindle ignores them; nothing may depend on
   them (§13, §27).
+* **One embedded font family per ``font-family`` stack**, followed by a generic. Two
+  embedded families in one stack is the single thing the Paperwhite was found not to
+  honour, and ``render_css`` must never emit it again — ``tests/test_rendering.py`` asserts
+  as much.
 """
 
 from __future__ import annotations
@@ -64,13 +68,20 @@ def render_css(config: Config) -> str:
     biblical = config.biblical_font
     rashi = config.rashi_font
 
-    # SPEC §15.2: with rashi_script off, the commentary falls back to the biblical font.
-    # The Rashi @font-face is still declared and the file still embedded, so flipping the
-    # switch is a config change and a rebuild, not a font hunt.
+    # One embedded family per stack, then a generic — never two embedded families.
+    #
+    # SPEC §16 writes this as `"Rashi", "BiblicalHebrew", serif`, and on the Paperwhite
+    # that is the one rule in the whole stylesheet that does not take effect. Six rounds of
+    # device testing narrowed to it: every rule naming a single embedded family plus a
+    # generic applies correctly, and `.commentary-text` — the only rule naming two — was
+    # the only failure. SPEC §0 settles the conflict in the device's favour.
+    #
+    # Nothing is lost by dropping the middle entry. It existed so a character missing from
+    # the Rashi font would fall back to the biblical one, and tests/test_fonts.py already
+    # proves no such character exists in the commentary: it checks the embedded font's cmap
+    # against the actual text on every run.
     commentary_stack = (
-        f'"{rashi.family}", "{biblical.family}", serif'
-        if t.rashi_script
-        else f'"{biblical.family}", serif'
+        f'"{rashi.family}", serif' if t.rashi_script else f'"{biblical.family}", serif'
     )
     dibur_stack = (
         f'"{biblical.family}", serif' if t.dibur_hamatchil_in_biblical_font else commentary_stack
