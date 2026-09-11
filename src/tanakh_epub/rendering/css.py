@@ -22,9 +22,14 @@ from __future__ import annotations
 from ..config import Config
 
 FONT_MEDIA_TYPES = {
-    ".ttf": "font/ttf",
-    ".otf": "font/otf",
+    ".ttf": "application/vnd.ms-opentype",
+    ".otf": "application/vnd.ms-opentype",
 }
+"""EPUB 3.3 calls `font/ttf` and `font/otf` the current types and this one obsolete, but
+`application/vnd.ms-opentype` is what Kindle's converter has always recognised — the
+modern types date from 2017, long after KFX's resource parser. EPUBCheck accepts both with
+0 errors and 0 warnings, so there is nothing to trade away by using the one the target
+device understands. SPEC §0: when anything conflicts, choose what works on the Kindle."""
 
 EPUB_FONT_NAMES = {
     "biblical": "biblical_hebrew",
@@ -98,14 +103,14 @@ def render_css(config: Config) -> str:
   font-family: "{biblical.family}";
   font-weight: normal;
   font-style: normal;
-  src: url("../{epub_font_href(config, "biblical")}");
+  src: url("../{epub_font_href(config, "biblical")}") format("truetype");
 }}
 
 @font-face {{
   font-family: "{rashi.family}";
   font-weight: normal;
   font-style: normal;
-  src: url("../{epub_font_href(config, "rashi")}");
+  src: url("../{epub_font_href(config, "rashi")}") format("truetype");
 }}
 
 /* ---- Page ---------------------------------------------------------- */

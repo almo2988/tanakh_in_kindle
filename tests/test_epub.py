@@ -111,10 +111,11 @@ def test_nav_and_ncx_are_both_present(opf) -> None:
     assert opf.find("opf:spine", NS).get("toc") == "ncx"
 
 
-def test_fonts_are_in_the_manifest_with_font_media_types(opf, config) -> None:
+def test_fonts_are_in_the_manifest_with_a_kindle_recognised_media_type(opf, config) -> None:
+    """`application/vnd.ms-opentype`, not the newer `font/ttf` — see css.FONT_MEDIA_TYPES."""
     media = {i.get("href"): i.get("media-type") for i in opf.findall("opf:manifest/opf:item", NS)}
-    assert media.get("fonts/biblical_hebrew.ttf") == "font/ttf"
-    assert media.get(f"fonts/rashi{config.rashi_font.suffix}") in {"font/otf", "font/ttf"}
+    assert media.get("fonts/biblical_hebrew.ttf") == "application/vnd.ms-opentype"
+    assert media.get(f"fonts/rashi{config.rashi_font.suffix}") == "application/vnd.ms-opentype"
 
 
 def test_font_files_are_embedded_and_non_empty(archive, config) -> None:

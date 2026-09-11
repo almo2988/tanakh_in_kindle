@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | First device test passed: it renders on the Paperwhite. One defect found and fixed (no Rashi script — D3), one new requirement raised and **parked by the human** (expandable commentary — D9). |
-| **Blocked on** | the human: re-sideload the rebuilt EPUB and judge the Rashi script (D3/D4), then fill the rest of the device table and decide D1–D2. |
+| **Status** | **Embedded fonts are not reaching the Paperwhite.** Round 2: the book renders correctly in Apple Books with both fonts applied, and on the Kindle with the wrong font. The EPUB is therefore sound; something between the file and the screen is dropping or ignoring the fonts. Two Kindle-compatibility fixes shipped; the cause is not yet identified. |
+| **Blocked on** | diagnosis. Two free checks decide everything and neither needs a code change — see "Font not reaching the Kindle" below. |
 | **Last session** | 2026-09-11 |
-| **Next action** | **(human)** rebuild and re-test: `python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 --output output/Genesis_Chapter_1.epub`. Is Noto Rashi Hebrew legible at 0.9em on the 7″ screen? Then **(Claude, when unparked)** D9, the expandable commentary. |
+| **Next action** | **(human)** on the device: does the Aa → Font menu list **Publisher Font** at all, and is it selected? And which delivery path produced the file — Calibre KFX or Send to Kindle? |
 
 ---
 
@@ -111,6 +111,37 @@ reported.
 
 4. **`tools/` and `.venv/` are git-ignored.** `scripts/epubcheck.sh` downloads EPUBCheck
    into `tools/` on first use (needs Java). Kindle Previewer cannot be scripted in.
+
+**Font not reaching the Kindle — open, round 2 (2026-09-11).** The same EPUB shows both
+embedded fonts correctly in Apple Books and the wrong font on the Paperwhite. That rules
+out the EPUB itself and points at the conversion or the delivery path. Candidates, in the
+order they should be checked, cheapest first:
+
+1. **Publisher Font is not selected.** Embedded fonts apply on Kindle *only* under
+   Aa → Font → **Publisher Font** (SPEC §0). This also explains round 1 cleanly: what was
+   reported as "square, not Rashi script" would look identical whether the Hadasim
+   placeholder was applied or the Kindle's own Hebrew face was. **The tell:** if the font
+   list does not offer "Publisher Font" at all, the converter dropped the fonts and the
+   cause is (2), not this.
+2. **Send to Kindle stripped the fonts.** SPEC §3.1 predicted exactly this — "Amazon's
+   converter controls what survives; embedded fonts are sometimes dropped" — and it is the
+   reason the POC is specified to be tested through *both* paths. If this is it, D1 answers
+   itself: Path A (Calibre KFX).
+3. **The converter did not recognise the font resources.** Addressed speculatively in
+   round 2, since both fixes are free: the manifest now declares
+   `application/vnd.ms-opentype` instead of the newer `font/ttf` (the modern type dates
+   from 2017, long after KFX's resource parser; EPUBCheck passes both with 0/0), and each
+   `@font-face src` now carries `format("truetype")`.
+4. **Not yet investigated:** bold runs. `.verse-number` and `.dibur-hamatchil` ask for
+   `font-weight: bold` and only Regular faces are embedded, which on Kindle can fall back
+   to a system font for those runs. That would affect only those two elements, not the body
+   text, so it does not fit the report — but it is worth fixing once the main cause is
+   known. Note if we do: Taamey Frank CLM's Bold variant has its **טעמים made transparent**
+   by design, which is harmless only as long as no vocalised biblical text is ever bold.
+
+Kindle Previewer would settle this in one run, and it is macOS/Windows only — it has never
+been available in a Claude session on this project. Running it locally is the single
+highest-value thing available (`scripts/kindle_previewer.sh`).
 
 **Parked: expandable commentary (D9).** Round 1 of the device test raised a new
 requirement — Rashi should open on a tap rather than sit in the flow, "like the Sefaria
@@ -268,5 +299,6 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-11 (3) | 1 | Round 2 of the device test: correct in Apple Books, wrong font on the Kindle — so the EPUB is sound and the loss is in conversion or delivery. Shipped the two Kindle-compatibility fixes that are free either way: font manifest entries now use `application/vnd.ms-opentype` rather than `font/ttf`, and `@font-face src` carries `format("truetype")`. EPUBCheck still 0/0; 161 tests pass. Cause not yet identified — see "Font not reaching the Kindle" under Phase 1 notes. | **(human)** the two free checks: is "Publisher Font" offered and selected, and which delivery path was used. If Kindle Previewer can be run locally, that settles it in one go. | 1. Does Aa → Font list "Publisher Font"? If it is not even offered, the fonts were dropped in conversion. 2. Calibre KFX or Send to Kindle? |
 | 2026-09-11 (2) | 1 | Round 1 of the device test came back: it renders on the Paperwhite, but the commentary was square Hebrew, not Rashi script. Replaced the placeholder with **Noto Rashi Hebrew 1.007** (SIL OFL, static TTF, fsType 0), `rashi_script: true`, `rashi_scale` 0.85 → 0.9; removed Hadasim CLM. Added `tests/test_fonts.py`, which checks each embedded font's cmap against the actual fixture text so a missing glyph fails a test instead of appearing as a blank box on the device — and fixed a real bug it exposed: `rashi_script: false` was not actually falling back to the biblical font. EPUBCheck still 0/0; 160 tests pass. | **(human)** re-sideload and judge the Rashi script (D3/D4), then finish the device table and decide D1–D2. Then unpark D9. | 1. Is Noto Rashi Hebrew legible at 0.9em on the 7″ screen, or should `rashi_script` go back to `false`? 2. D9 is parked at your request — say when. 3. Which delivery path did you use in round 1? The device table has a column per path and I did not want to guess. |
 | 2026-09-11 | 1 | All 17 Phase 1 tasks and all four Claude-side exit criteria. `build --chapter Genesis 1 --max-verse 10` produces a 70 KB EPUB that EPUBCheck 5.2.1 passes with 0 errors and 0 warnings; 150 tests pass, `ruff` clean. Fixtures captured from the live Sefaria API in two whole-book requests (`scripts/capture_fixtures.py`). Fonts embedded with licenses verified from their own name tables. D8 decided; D5–D7 recorded as provisional. | **(human)** the Phase 1 device gate: both delivery paths onto the Paperwhite, fill the device table, decide D1–D4. Phase 2 does not start until every box above is ticked. | 1. D1: which delivery path survives — test A **and** B. 2. D2: do ניקוד + טעמים stack correctly in בראשית א׳:א׳ under Publisher Font? If not, read Phase 1 note 2 (NFC reordering) before blaming the font. 3. D3: accept `rashi_script: false` with a square font, or should a Rashi-script font with a checkable license be hunted down? 4. D4: is 0.85em legible at the Paperwhite's default size? 5. Should `SPEC.md` §17/§26 be amended to say direction comes from `dir="rtl"`, not CSS (Phase 1 note 1)? |

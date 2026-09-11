@@ -179,6 +179,11 @@ def test_css_declares_both_font_families(config) -> None:
     assert f'@font-face {{\n  font-family: "{config.rashi_font.family}";' in css
 
 
+def test_font_face_src_carries_a_format_hint(config) -> None:
+    """Some converters skip a face whose format they would have to guess at."""
+    assert render_css(config).count('format("truetype")') == 2
+
+
 def test_css_uses_no_absolute_or_viewport_units(config) -> None:
     """SPEC §14: everything must scale together when the reader changes the font size."""
     assert not re.search(r"[\d.]+\s*(px|pt|vh|vw|cm|mm|in)\b", render_css(config))
