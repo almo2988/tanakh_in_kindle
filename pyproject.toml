@@ -54,3 +54,4 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 "*" = ["RUF001", "RUF002", "RUF003"]
 # Diagnostic markup reads better as whole lines than wrapped mid-attribute.
 "scripts/font_diagnostic.py" = ["E501"]
+"scripts/css_bisect.py" = ["E501"]
