@@ -59,9 +59,12 @@ def render_css(config: Config) -> str:
     biblical = config.biblical_font
     rashi = config.rashi_font
 
+    # SPEC §15.2: with rashi_script off, the commentary falls back to the biblical font.
+    # The Rashi @font-face is still declared and the file still embedded, so flipping the
+    # switch is a config change and a rebuild, not a font hunt.
     commentary_stack = (
         f'"{rashi.family}", "{biblical.family}", serif'
-        if t.rashi_script or rashi.family != biblical.family
+        if t.rashi_script
         else f'"{biblical.family}", serif'
     )
     dibur_stack = (
@@ -75,10 +78,10 @@ def render_css(config: Config) -> str:
     )
 
     rashi_note = (
-        f"   {rashi.name} — Rashi script."
+        f"   {rashi.name} — commentary, in Rashi script."
         if t.rashi_script
-        else f"   {rashi.name} — a square placeholder, not Rashi script "
-        f"(typography.rashi_script is false; see decision D3)."
+        else f"   {rashi.name} — embedded but unused: typography.rashi_script is false, "
+        f"so the\n   commentary falls back to the biblical font."
     )
 
     return f"""@charset "utf-8";

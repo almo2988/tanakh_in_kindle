@@ -133,5 +133,7 @@ EPUB reproduces those names and licenses on its מקורות page. The Phase 1 f
 
 Both are provisional until decisions D5 and D6 in `PROGRESS.md`.
 
-Fonts are embedded under the Culmus Project's GPL-2.0 font-embedding exception; see
-`fonts/README.md` for the verified license of each one. The generator code itself is MIT.
+Two fonts are embedded, each with its license read and recorded in `fonts/README.md`:
+**Taamey Frank CLM** for the biblical text (GPL-2.0 with the Culmus font-embedding
+exception) and **Noto Rashi Hebrew** for the commentary (SIL OFL 1.1). The generator code
+itself is MIT.

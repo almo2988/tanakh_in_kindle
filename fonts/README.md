@@ -1,31 +1,41 @@
 # Fonts
 
 Only fonts whose license has been read and recorded live here (CLAUDE.md, non-negotiable 9).
-Every font below reports `fsType = 0` (installable embedding permitted) in its own `OS/2`
-table, and carries the Culmus font-embedding exception to the GPL, which is what allows it
-to be embedded in a distributed EPUB.
+Both fonts below report `fsType = 0` (installable embedding permitted) in their own `OS/2`
+table, and both are **static** TrueType — a variable font is not known to survive Kindle's
+KFX conversion.
 
 | File | Family | Version | Role | License |
 |---|---|---|---|---|
-| `TaameyFrankCLM-Medium.ttf` | Taamey Frank CLM | 0.110 | biblical text — D2 candidate | GPL-2.0 + font-embedding exception (`LICENSE-TaameyFrankCLM.txt`) |
-| `HadasimCLM-Regular.otf` | Hadasim CLM | 0.140 | **square placeholder** for commentary — D3 open | GPL-2.0 + font-embedding exception (`LICENSE-Culmus.txt`) |
+| `TaameyFrankCLM-Medium.ttf` | Taamey Frank CLM | 0.110 | biblical text (D2) | GPL-2.0 + font-embedding exception (`LICENSE-TaameyFrankCLM.txt`) |
+| `NotoRashiHebrew-Regular.ttf` | Noto Rashi Hebrew | 1.007 | commentary, in Rashi script (D3) | SIL OFL 1.1 (`LICENSE-NotoRashiHebrew.txt`) |
 
-`Taamey Frank CLM` is the biblical candidate because it carries the Hancock/Hudson Biblical
-Hebrew OpenType layout logic, which is what positions ניקוד and טעמים without collisions.
-Whether it actually stacks correctly on the Paperwhite is a **device** question (D2), not a
-desktop one — see the Phase 1 human gate in `PROGRESS.md`.
+`Taamey Frank CLM` carries the Hancock/Hudson Biblical Hebrew OpenType layout logic, which
+is what positions ניקוד and טעמים without collisions.
 
-`Hadasim CLM` is **not Rashi script.** It is a legible square Hebrew face standing in the
-Rashi slot until D3 is decided, which is why `typography.rashi_script` is `false` in
-`config/default.yaml`. Nothing in the build assumes Rashi script; the divider, the smaller
-size and the dibur-hamatchil styling are what separate commentary from verse.
+`Noto Rashi Hebrew` is genuine Rashi script — a semi-cursive skeleton based on 15th-century
+Sephardic writing — and replaced the square placeholder that the first Paperwhite test
+rejected. It covers every character present in the Rashi fixture, which `tests/test_fonts.py`
+asserts on every run: a font that is missing a glyph does not fail the build, it renders a
+blank box, and only on the device.
+
+Rashi commentary is unvocalized, so the commentary font is not required to stack ניקוד;
+the biblical font is, and is tested for it.
+
+`typography.rashi_script: false` remains the escape hatch if Rashi script proves hard to
+read on the 7″ screen — the commentary then falls back to the biblical font. The Rashi
+`@font-face` is still declared and the file still embedded, so it is a config change and a
+rebuild, not a font hunt.
 
 Inside the EPUB these are renamed to `OEBPS/fonts/biblical_hebrew.ttf` and
-`OEBPS/fonts/rashi.otf` (SPEC.md §11); the repo keeps the upstream file names so the
+`OEBPS/fonts/rashi.ttf` (SPEC.md §11); the repo keeps the upstream file names so the
 version being shipped is never in doubt.
 
 Sources, both fetched 2026-09-11:
 
-- Taamey Frank CLM — <https://www.sefaria.org/static/fonts/Taamey-Frank/TaameyFrankCLM-Medium.ttf>
-- Hadasim CLM, and `LICENSE-Culmus.txt` / `GNU-GPL-2.0.txt` — the Culmus 0.140 release,
-  <https://sourceforge.net/projects/culmus/files/culmus/0.140/culmus-0.140.tar.gz>
+- Taamey Frank CLM — <https://www.sefaria.org/static/fonts/Taamey-Frank/TaameyFrankCLM-Medium.ttf>,
+  upstream the Culmus Project <https://culmus.sourceforge.io/>. `GNU-GPL-2.0.txt` is the
+  full text of the licence its embedding exception modifies.
+- Noto Rashi Hebrew — the static TrueType build behind
+  <https://fonts.googleapis.com/css2?family=Noto+Rashi+Hebrew:wght@400>, upstream
+  <https://github.com/notofonts/hebrew>.

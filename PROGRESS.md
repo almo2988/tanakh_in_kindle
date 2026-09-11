@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | code complete; all Claude-side tasks and exit criteria met. Waiting on the **human gate**. |
-| **Blocked on** | the human: put `output/Genesis_Chapter_1.epub` on the Paperwhite through **both** delivery paths, fill the device table below, and decide D1–D4. Nothing further can be built until then. |
+| **Status** | First device test passed: it renders on the Paperwhite. One defect found and fixed (no Rashi script — D3), one new requirement raised and **parked by the human** (expandable commentary — D9). |
+| **Blocked on** | the human: re-sideload the rebuilt EPUB and judge the Rashi script (D3/D4), then fill the rest of the device table and decide D1–D2. |
 | **Last session** | 2026-09-11 |
-| **Next action** | **(human)** build with `python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 --output output/Genesis_Chapter_1.epub`, then follow README → "Getting the book onto the Kindle" for Path A and Path B. |
+| **Next action** | **(human)** rebuild and re-test: `python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 --output output/Genesis_Chapter_1.epub`. Is Noto Rashi Hebrew legible at 0.9em on the 7″ screen? Then **(Claude, when unparked)** D9, the expandable commentary. |
 
 ---
 
@@ -62,12 +62,17 @@
 
 **Device results — Phase 1** (✓ / ✗ / note)
 
+Round 1, 2026-09-11: the human reported "it renders okay on the kindle" and one defect —
+the commentary was in a square Hebrew face, not Rashi script. The delivery path used was
+not recorded, so no per-path cell is claimed below; the ✗ is the one thing explicitly
+reported.
+
 | Check (`SPEC.md` §3.3) | Path A (Calibre KFX) | Path B (Send to Kindle) |
 |---|---|---|
 | Opens; cover in library | | |
 | Biblical font applied under Publisher Font | | |
 | ניקוד + טעמים stacked correctly (א׳:א׳) | | |
-| Rashi font applied / legible at default size | | |
+| Rashi font applied / legible at default size | ✗ round 1 — square, not Rashi script. Fixed (D3); **needs re-test** | |
 | Page turns right-to-left | | |
 | Verse numbers, geresh/gershayim, parentheses correct | | |
 | Font size change scales everything proportionally | | |
@@ -97,13 +102,41 @@
    to suspect**, not the font choice. `SPEC.md` §7 mandates NFC, so it was not second-guessed
    here.
 
-3. **The Rashi font is a square placeholder, not Rashi script** (Hadasim CLM), so
-   `typography.rashi_script` is `false`. D3 is still open. The commentary is still clearly
-   separated — divider, smaller size, bold dibur hamatchil — so the legibility question for
-   D4 can be answered from this build; the script question cannot.
+3. ~~**The Rashi font is a square placeholder, not Rashi script** (Hadasim CLM).~~
+   **Fixed 2026-09-11 after round 1 of the device test.** The commentary is now set in
+   **Noto Rashi Hebrew** 1.007 (SIL OFL, static TTF, `fsType 0`), `rashi_script: true`, and
+   the Hadasim placeholder is gone from the repo. `rashi_scale` went 0.85 → 0.9, because
+   Rashi script carries less weight than a square face at the same nominal em. D4 is still
+   the human's to confirm on the screen.
 
 4. **`tools/` and `.venv/` are git-ignored.** `scripts/epubcheck.sh` downloads EPUBCheck
    into `tools/` on first use (needs Java). Kindle Previewer cannot be scripted in.
+
+**Parked: expandable commentary (D9).** Round 1 of the device test raised a new
+requirement — Rashi should open on a tap rather than sit in the flow, "like the Sefaria
+app", because a verse followed by several screens of commentary breaks the reading of the
+text itself. The human parked it ("we will work on it after"), so nothing was built. What
+the research found, so the next session does not repeat it:
+
+- **`<a epub:type="noteref">` + `<aside epub:type="footnote">` is Amazon's own documented
+  mechanism** and the one commercial Kindle books use. Kindle turns the marker into a tap
+  target and shows the aside as an overlay, so the reader never leaves the page. It needs
+  **bidirectional** links — without a back-link inside the aside the popup may not appear.
+  Readers that do not support it render the aside in place, which is exactly today's
+  layout, so it degrades safely.
+- **`<details>`/`<summary>` is the closest thing to the Sefaria app** (expands in the flow,
+  not as an overlay) and works in Apple Books, Kobo and Thorium, but **its behaviour on KFX
+  could not be established** from Amazon's docs or the community support grids. It has to
+  be tested on the device; the likely outcomes are "renders permanently expanded" or
+  "conversion rejects it".
+- A third option — commentary collected at the end of the chapter with links both ways —
+  works everywhere but requires navigating away from the text, which is what `SPEC.md` §2
+  exists to forbid and what the request is trying to avoid.
+- Whichever wins, **`SPEC.md` §2 needs amending**: it currently mandates that commentary
+  appear immediately after its verse in the flow. A popup satisfies the *intent* (you never
+  leave the page) but not the letter.
+- This must be settled **before Phase 3**, because it changes the markup of all 929 chapter
+  files.
 
 *What the POC actually contains:* בראשית א׳:א׳–י׳, 10 verses, 17 Rashi entries across 9
 verses, and א׳:ג׳ deliberately has no Rashi — that is the "no empty commentary block" case
@@ -221,12 +254,13 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 |---|---|---|---|---|
 | D1 | Delivery path (`calibre-kfx` / `send-to-kindle`) | **open (human)** — `calibre-kfx` is configured as SPEC §3.1's default assumption; both paths must be tested before it is frozen | | `config/default.yaml` `target.delivery`, README |
 | D2 | Biblical font (Taamey Frank CLM / Taamey David CLM / Ezra SIL) | **candidate prepared (human decides)** — Taamey Frank CLM Medium 0.110 is embedded and built. It carries the Hancock/Hudson Biblical Hebrew OpenType layout logic, which is what positions ניקוד and טעמים. Whether it stacks correctly **on the Paperwhite** is the open question. | | `fonts.biblical`, `fonts/README.md`, `sources.xhtml` |
-| D3 | Rashi-script font + verified license, or `rashi_script: false` | **open (human)** — no Rashi-script font with a verified license was found, so `rashi_script: false` and Hadasim CLM Regular 0.140 stands in as the configured second square font (SPEC §15.2). Nothing is blocked by this. | | `fonts.rashi`, `typography.rashi_script` |
-| D4 | `rashi_scale` after legibility check | 0.85 (default, **unverified on device**) — answerable from this POC even with the placeholder font | | `typography.rashi_scale` |
+| D3 | Rashi-script font + verified license, or `rashi_script: false` | **decided — Noto Rashi Hebrew Regular 1.007**, SIL OFL 1.1, `fsType 0`, static TTF. Genuine Rashi script. Covers every character in the Rashi fixture (asserted by `tests/test_fonts.py`). Round 1 on the device rejected the square placeholder, which is now removed from the repo. `rashi_script: true`. | 2026-09-11 | `fonts.rashi`, `typography.rashi_script`, `fonts/README.md` |
+| D4 | `rashi_scale` after legibility check | 0.9 — raised from 0.85 with the font swap, since Rashi script reads lighter than a square face at the same em. **Still unverified on the device.** | 2026-09-11 | `typography.rashi_scale` |
 | D5 | Sefaria Tanakh version (must include טעמים) | **provisional** — *Miqra according to the Masorah* (CC BY-SA), which the fixtures were captured from. Phase 2 compares it against *Tanach with Ta'amei Hamikra* (Public Domain) in `docs/VERSION_SELECTION.md`. | 2026-09-11 | `sources.tanakh`, `tests/fixtures/genesis_1.json` |
 | D6 | Sefaria Rashi version | **provisional** — *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934* (Public Domain), Sefaria's primary Hebrew Rashi | 2026-09-11 | `sources.commentaries.Rashi`, `tests/fixtures/rashi_genesis_1.json` |
 | D7 | Sefaria index titles in `books.yaml` verified via API | **partial** — `Genesis` and `Rashi on Genesis` confirmed against the live API during fixture capture; the other 38 are still from SPEC §9 and are verified in Phase 2 | 2026-09-11 | `config/books.yaml` |
 | D8 | EPUB writer: hand-rolled (zipfile + Jinja2) vs `ebooklib` | **hand-rolled** — SPEC §32 admits `ebooklib` only if its output passes EPUBCheck *and* Kindle Previewer unmodified. Every file that matters here (OPF spine with `page-progression-direction`, the NCX kept beside the nav document, exact font media types) is one Kindle quirk away from needing a hand edit, and `zipfile` gives that control in ~100 lines. Passing EPUBCheck with 0 errors/0 warnings. | 2026-09-11 | `epub/builder.py` docstring |
+| D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **open — parked by the human.** Raised by round 1 of the device test; see "Parked" under Phase 1 notes for what the research found. Must be settled before Phase 3. | | `SPEC.md` §2, and the chapter template |
 
 ---
 
@@ -234,4 +268,5 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-11 (2) | 1 | Round 1 of the device test came back: it renders on the Paperwhite, but the commentary was square Hebrew, not Rashi script. Replaced the placeholder with **Noto Rashi Hebrew 1.007** (SIL OFL, static TTF, fsType 0), `rashi_script: true`, `rashi_scale` 0.85 → 0.9; removed Hadasim CLM. Added `tests/test_fonts.py`, which checks each embedded font's cmap against the actual fixture text so a missing glyph fails a test instead of appearing as a blank box on the device — and fixed a real bug it exposed: `rashi_script: false` was not actually falling back to the biblical font. EPUBCheck still 0/0; 160 tests pass. | **(human)** re-sideload and judge the Rashi script (D3/D4), then finish the device table and decide D1–D2. Then unpark D9. | 1. Is Noto Rashi Hebrew legible at 0.9em on the 7″ screen, or should `rashi_script` go back to `false`? 2. D9 is parked at your request — say when. 3. Which delivery path did you use in round 1? The device table has a column per path and I did not want to guess. |
 | 2026-09-11 | 1 | All 17 Phase 1 tasks and all four Claude-side exit criteria. `build --chapter Genesis 1 --max-verse 10` produces a 70 KB EPUB that EPUBCheck 5.2.1 passes with 0 errors and 0 warnings; 150 tests pass, `ruff` clean. Fixtures captured from the live Sefaria API in two whole-book requests (`scripts/capture_fixtures.py`). Fonts embedded with licenses verified from their own name tables. D8 decided; D5–D7 recorded as provisional. | **(human)** the Phase 1 device gate: both delivery paths onto the Paperwhite, fill the device table, decide D1–D4. Phase 2 does not start until every box above is ticked. | 1. D1: which delivery path survives — test A **and** B. 2. D2: do ניקוד + טעמים stack correctly in בראשית א׳:א׳ under Publisher Font? If not, read Phase 1 note 2 (NFC reordering) before blaming the font. 3. D3: accept `rashi_script: false` with a square font, or should a Rashi-script font with a checkable license be hunted down? 4. D4: is 0.85em legible at the Paperwhite's default size? 5. Should `SPEC.md` §17/§26 be amended to say direction comes from `dir="rtl"`, not CSS (Phase 1 note 1)? |
