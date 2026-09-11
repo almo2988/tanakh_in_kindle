@@ -1,0 +1,51 @@
+{#-
+  One chapter — SPEC.md §11, §12, §13, §17, §18.
+
+  Structure follows §13, which supersedes §12.2's whole-unit wrapper: only a small
+  `keep-together` block (verse + divider + first commentary entry) carries the page-break
+  hint. Kindle ignores the hint entirely, and readers that honour it would otherwise leave
+  a blank page before a Rashi that runs for several screens.
+
+  The verse and each commentary entry arrive as internal markup that markup.py has already
+  escaped; every other value is autoescaped by Jinja.
+-#}
+{%- import "_macros.xhtml.j2" as m -%}
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"
+      xml:lang="he" lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <title>{{ page_title }}</title>
+  <link rel="stylesheet" type="text/css" href="../styles/main.css"/>
+</head>
+<body dir="rtl">
+  <section id="{{ chapter_anchor }}" epub:type="chapter"{% if book_start %} class="book-start"{% endif %}>
+{%- if book_start %}
+    <h1 class="book-heading">{{ book_hebrew_title }}</h1>
+{%- endif %}
+    <h2 class="chapter-heading">{{ chapter_label }}</h2>
+{%- for unit in units %}
+    <section class="study-unit">
+      <div class="keep-together">
+        <div class="verse" id="{{ unit.verse_id }}">
+          <span class="verse-number">{{ unit.verse_label }}</span>
+          <span class="biblical-text">{{ unit.verse_html }}</span>
+        </div>
+        {%- if unit.commentary %}
+        <div class="commentary-divider {{ unit.commentary.slug }}-divider">{{ unit.commentary.hebrew }}</div>
+        {{ m.commentary_entry(unit.commentary.entries[0], unit.commentary.slug) }}
+        {%- endif %}
+      </div>
+      {%- if unit.commentary and unit.commentary.entries|length > 1 %}
+      <section class="commentary {{ unit.commentary.slug }}">
+        {%- for entry in unit.commentary.entries[1:] %}
+        {{ m.commentary_entry(entry, unit.commentary.slug) }}
+        {%- endfor %}
+      </section>
+      {%- endif %}
+    </section>
+{%- endfor %}
+  </section>
+</body>
+</html>

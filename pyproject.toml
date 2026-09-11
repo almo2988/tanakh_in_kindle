@@ -1,0 +1,51 @@
+[project]
+name = "tanakh-epub"
+version = "0.1.0"
+description = "Reflowable Hebrew EPUB 3 of the Tanakh with Rashi, targeting the Kindle Paperwhite"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+tanakh-epub = "tanakh_epub.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tanakh_epub"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: hits the Sefaria API; skipped unless RUN_NETWORK_TESTS=1",
+    "epubcheck: needs EPUBCheck (java); skipped with a message when absent",
+    "kindle_previewer: needs Kindle Previewer 3; skipped with a message when absent",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# The spec documents are the project's contract. Ruff formats Python code blocks inside
+# Markdown, which would quietly rewrite the snippets in SPEC.md; they are not ours to
+# reformat.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Hebrew string literals are the point of this project, not ambiguous-character mistakes.
+"*" = ["RUF001", "RUF002", "RUF003"]

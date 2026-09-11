@@ -1,0 +1,62 @@
+# Canonical book table — SPEC.md §9.
+#
+# This file is the single place book identity is defined. Nothing in the code may
+# hard-code a book name, and no slug is ever derived by lower-casing the Sefaria
+# title ("I Samuel" and "Song of Songs" would both break).
+#
+# sefaria_title  internal English index title, exactly as Sefaria spells it (D7 verifies
+#                these against the API in Phase 2 — the table is the contract, the API is
+#                the source of truth for spelling)
+# hebrew_title   the only form that ever reaches the reader
+# slug           URL/ID-safe; used for file names (`{slug}-{chapter:03d}.xhtml`) and
+#                verse anchors (`{slug}-{chapter}-{verse}`)
+# section        torah | neviim | ketuvim
+#
+# Order in this list is the canonical Tanakh order and therefore the spine order.
+
+books:
+  - { sefaria_title: "Genesis",        hebrew_title: "בראשית",        slug: genesis,       section: torah }
+  - { sefaria_title: "Exodus",         hebrew_title: "שמות",          slug: exodus,        section: torah }
+  - { sefaria_title: "Leviticus",      hebrew_title: "ויקרא",         slug: leviticus,     section: torah }
+  - { sefaria_title: "Numbers",        hebrew_title: "במדבר",         slug: numbers,       section: torah }
+  - { sefaria_title: "Deuteronomy",    hebrew_title: "דברים",         slug: deuteronomy,   section: torah }
+  - { sefaria_title: "Joshua",         hebrew_title: "יהושע",         slug: joshua,        section: neviim }
+  - { sefaria_title: "Judges",         hebrew_title: "שופטים",        slug: judges,        section: neviim }
+  - { sefaria_title: "I Samuel",       hebrew_title: "שמואל א׳",      slug: samuel-1,      section: neviim }
+  - { sefaria_title: "II Samuel",      hebrew_title: "שמואל ב׳",      slug: samuel-2,      section: neviim }
+  - { sefaria_title: "I Kings",        hebrew_title: "מלכים א׳",      slug: kings-1,       section: neviim }
+  - { sefaria_title: "II Kings",       hebrew_title: "מלכים ב׳",      slug: kings-2,       section: neviim }
+  - { sefaria_title: "Isaiah",         hebrew_title: "ישעיהו",        slug: isaiah,        section: neviim }
+  - { sefaria_title: "Jeremiah",       hebrew_title: "ירמיהו",        slug: jeremiah,      section: neviim }
+  - { sefaria_title: "Ezekiel",        hebrew_title: "יחזקאל",        slug: ezekiel,       section: neviim }
+  - { sefaria_title: "Hosea",          hebrew_title: "הושע",          slug: hosea,         section: neviim }
+  - { sefaria_title: "Joel",           hebrew_title: "יואל",          slug: joel,          section: neviim }
+  - { sefaria_title: "Amos",           hebrew_title: "עמוס",          slug: amos,          section: neviim }
+  - { sefaria_title: "Obadiah",        hebrew_title: "עובדיה",        slug: obadiah,       section: neviim }
+  - { sefaria_title: "Jonah",          hebrew_title: "יונה",          slug: jonah,         section: neviim }
+  - { sefaria_title: "Micah",          hebrew_title: "מיכה",          slug: micah,         section: neviim }
+  - { sefaria_title: "Nahum",          hebrew_title: "נחום",          slug: nahum,         section: neviim }
+  - { sefaria_title: "Habakkuk",       hebrew_title: "חבקוק",         slug: habakkuk,      section: neviim }
+  - { sefaria_title: "Zephaniah",      hebrew_title: "צפניה",         slug: zephaniah,     section: neviim }
+  - { sefaria_title: "Haggai",         hebrew_title: "חגי",           slug: haggai,        section: neviim }
+  - { sefaria_title: "Zechariah",      hebrew_title: "זכריה",         slug: zechariah,     section: neviim }
+  - { sefaria_title: "Malachi",        hebrew_title: "מלאכי",         slug: malachi,       section: neviim }
+  - { sefaria_title: "Psalms",         hebrew_title: "תהלים",         slug: psalms,        section: ketuvim }
+  - { sefaria_title: "Proverbs",       hebrew_title: "משלי",          slug: proverbs,      section: ketuvim }
+  - { sefaria_title: "Job",            hebrew_title: "איוב",          slug: job,           section: ketuvim }
+  - { sefaria_title: "Song of Songs",  hebrew_title: "שיר השירים",    slug: song-of-songs, section: ketuvim }
+  - { sefaria_title: "Ruth",           hebrew_title: "רות",           slug: ruth,          section: ketuvim }
+  - { sefaria_title: "Lamentations",   hebrew_title: "איכה",          slug: lamentations,  section: ketuvim }
+  - { sefaria_title: "Ecclesiastes",   hebrew_title: "קהלת",          slug: ecclesiastes,  section: ketuvim }
+  - { sefaria_title: "Esther",         hebrew_title: "אסתר",          slug: esther,        section: ketuvim }
+  - { sefaria_title: "Daniel",         hebrew_title: "דניאל",         slug: daniel,        section: ketuvim }
+  - { sefaria_title: "Ezra",           hebrew_title: "עזרא",          slug: ezra,          section: ketuvim }
+  - { sefaria_title: "Nehemiah",       hebrew_title: "נחמיה",         slug: nehemiah,      section: ketuvim }
+  - { sefaria_title: "I Chronicles",   hebrew_title: "דברי הימים א׳", slug: chronicles-1,  section: ketuvim }
+  - { sefaria_title: "II Chronicles",  hebrew_title: "דברי הימים ב׳", slug: chronicles-2,  section: ketuvim }
+
+# Section names, for the optional flat section entries in the nav (SPEC.md §10).
+sections:
+  torah:   "תורה"
+  neviim:  "נביאים"
+  ketuvim: "כתובים"

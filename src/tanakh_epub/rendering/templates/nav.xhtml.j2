@@ -1,0 +1,47 @@
+{#- EPUB 3 Navigation Document — SPEC.md §10. Depth is exactly two: book → chapter.
+    Kindle's "Go to" menu shows two nested levels; a third would hide the chapters. -#}
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"
+      xml:lang="he" lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <title>{{ toc_title }}</title>
+  <link rel="stylesheet" type="text/css" href="styles/main.css"/>
+</head>
+<body dir="rtl">
+  <nav epub:type="toc" id="toc">
+    <h1>{{ toc_title }}</h1>
+    <ol>
+{%- if sections %}
+{%- for section in sections %}
+      <li><a href="{{ section.href }}">{{ section.title }}</a></li>
+{%- endfor %}
+{%- endif %}
+{%- for book in books %}
+      <li><a href="{{ book.href }}">{{ book.title }}</a>
+{%- if book.chapters %}
+        <ol>
+{%- for chapter in book.chapters %}
+          <li><a href="{{ chapter.href }}">{{ chapter.title }}</a></li>
+{%- endfor %}
+        </ol>
+{%- endif %}
+      </li>
+{%- endfor %}
+{%- if sources_href %}
+      <li><a href="{{ sources_href }}">{{ sources_title }}</a></li>
+{%- endif %}
+    </ol>
+  </nav>
+  <nav epub:type="landmarks" hidden="hidden">
+    <h1>{{ landmarks_title }}</h1>
+    <ol>
+      <li><a epub:type="bodymatter" href="{{ start_href }}">{{ start_title }}</a></li>
+{%- if sources_href %}
+      <li><a epub:type="copyright-page" href="{{ sources_href }}">{{ sources_title }}</a></li>
+{%- endif %}
+    </ol>
+  </nav>
+</body>
+</html>

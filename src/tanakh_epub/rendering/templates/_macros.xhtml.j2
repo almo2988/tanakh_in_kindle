@@ -1,0 +1,9 @@
+{#- Shared fragments — SPEC.md §12. -#}
+
+{%- macro commentary_entry(entry, slug) -%}
+<div class="commentary-entry {{ slug }}" id="{{ entry.id }}">
+        {%- for paragraph in entry.paragraphs %}
+        <p class="commentary-text">{% if loop.first and entry.dibur_hamatchil %}<span class="dibur-hamatchil">{{ entry.dibur_hamatchil }}</span> {% endif %}{{ paragraph }}</p>
+        {%- endfor %}
+      </div>
+{%- endmacro -%}
