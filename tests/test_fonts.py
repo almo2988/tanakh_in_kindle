@@ -116,4 +116,9 @@ def test_config_font_metadata_matches_the_file(config, role: str) -> None:
             continue
     family = names[1]
     assert family in font.name, f'config calls it "{font.name}", the file says "{family}"'
+    assert font.family == family, (
+        f'config declares the CSS family as "{font.family}" but the font calls itself '
+        f'"{family}". They must match: a reader that resolves an embedded font by its own '
+        f"name rather than by the @font-face family will otherwise fall back silently."
+    )
     assert font.suffix in (".ttf", ".otf"), "WOFF does not survive Kindle conversion"

@@ -39,9 +39,15 @@ sources:
 fonts:
   # Both licenses verified against the font's own name table (IDs 0/13) and the project
   # LICENSE file shipped next to it; both report fsType 0 (installable embedding).
+  #
+  # `family` must be the font's OWN internal family name (name ID 1), not a label of our
+  # choosing. CSS says an @font-face family name overrides whatever is in the font data,
+  # and Apple Books honours that — but a reader that matches on the embedded font's real
+  # name instead will find nothing and fall back silently. Matching costs nothing and
+  # removes the question. tests/test_fonts.py enforces it.
   biblical:
     file: fonts/TaameyFrankCLM-Medium.ttf
-    family: BiblicalHebrew
+    family: "Taamey Frank CLM"
     name: "Taamey Frank CLM Medium 0.110"
     license: "GNU GPL v2 with font-embedding exception"
     license_file: fonts/LICENSE-TaameyFrankCLM.txt
@@ -49,7 +55,7 @@ fonts:
     # D3, decided 2026-09-11: real Rashi script, OFL, static TTF. Replaces the square
     # placeholder the first device test rejected.
     file: fonts/NotoRashiHebrew-Regular.ttf
-    family: RashiHebrew
+    family: "Noto Rashi Hebrew"
     name: "Noto Rashi Hebrew Regular 1.007"
     license: "SIL Open Font License 1.1"
     license_file: fonts/LICENSE-NotoRashiHebrew.txt
