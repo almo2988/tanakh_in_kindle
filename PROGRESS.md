@@ -219,17 +219,6 @@ fallback if this fails on the device (see the Phase 1 notes for that research).
 
 **Status:** `<details>` rejected by the device; `popup` built as its successor and awaiting test.
 
-> **A two-stream מקראות גדולות layout was built on 2026-09-12 and rolled back the same day at
-> the author's request** (`git revert` of 4942932 — the work is intact in history and restoring
-> it is one `git revert` away). It replaced the verse-and-its-Rashi unit with a run of
-> consecutive verses followed by the Rashi on that whole run, each region one continuous
-> paragraph, with `data-ref` carrying the canonical Sefaria reference on every verse and
-> segment so the association survived the regrouping. Block size was a character budget
-> (`block_chars`, 420 → 3–5 verses) rather than a verse count. Recorded here so it is not
-> rebuilt by accident, and because the two findings it produced still stand: the ~50/50 split
-> the brief asked for is a property of the content rather than something block size can set
-> (בראשית א׳ lands near 40/60), and the layout contradicted SPEC §2.
-
 **Device results — Phase 1b, round 1 (`details`, via Send to Kindle, 2026-09-12)**
 
 | Check | Send to Kindle | Calibre KFX |
@@ -413,7 +402,6 @@ otherwise, so nothing that already works can regress while this is being decided
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
-| 2026-09-12 (3) | 1b | Built the two-stream מקראות גדולות layout, then reverted it the same day at the author's request. `git revert` rather than a force-push, since the branch was already pushed and the work is worth keeping recoverable. The tree is back to exactly the state that was delivered with the popup and inline POCs; a note under Phase 1b records what the layout was and what it found, so it is neither rebuilt by accident nor silently lost. | **(human)** the device round that is still outstanding: the popup POC and the inline control, sent the same way. | Unchanged: does the popup open on a tap, and does the inline control also lose its TOC and font controls? |
 | 2026-09-12 (2) | 1b | `<details>` **fails on the Kindle**: renders permanently expanded, and the same build showed no table of contents and an unchangeable, very small font. Apple Books renders it exactly as intended, so the markup is right and the device is the constraint. Built `popup` as the successor — `<a epub:type="noteref">` into an `<aside epub:type="footnote">`, linked both ways with a Hebrew backlink, which is the mechanism Amazon documents and whose failure mode is the inline layout rather than a broken book. Ruled the stylesheet out of the font symptom: its smallest size is 0.75em and the details rules set none. EPUBCheck 0/0 on all three modes; 186 tests pass. | **(human)** Send to Kindle the popup POC **and** the inline control. | 1. Does the popup open on a tap? 2. Does the inline control also lose its TOC and font controls? If yes, those two symptoms are Send to Kindle (Path B), not `<details>`, and D1 answers itself. |
 | 2026-09-12 | 1b | Unparked D9 and built the collapsible commentary the author specified: native `<details>`/`<summary>`, no JavaScript, collapsed by default, behind a new `commentary.mode` whose default stays `inline` so nothing that works can regress. `<summary>` takes over the divider's role and keeps its classes; `keep-together` is dropped when collapsed. CSS is emitted only in that mode and stays inside SPEC §26 — no `display`, no `list-style`. Also fixed a latent bug found on the way: entry ids were built by lower-casing the Sefaria title, so `I Samuel` gave `i-samuel` in ids against `samuel-1` in file names; they now come from `BookInfo.slug`. 17 new tests, including that the verse markup is byte-identical across modes and nav + NCX are unchanged. EPUBCheck 0/0 on both modes; 180 tests pass. | **(human)** Send to Kindle the details POC and report whether the רש״י bars start collapsed and open on a tap. | 1. Does `<details>` collapse on the Paperwhite? Amazon documents no support, so this is genuinely unknown. 2. If the fonts look wrong in this test, that is Send to Kindle (Path B), not `<details>` — sideload the same file via Calibre KFX to tell them apart. |
 | 2026-09-11 (8) | 1 | **Cause found.** Round 7's two-paragraph diagnostic applies a second embedded font correctly on the device. Its rule names one embedded family plus a generic; `.commentary-text` named two — the only such rule in the stylesheet, and the only one that failed. `render_css` now emits one embedded family per stack followed by a generic, with two tests holding it there. Contradicts SPEC §16, which §0 settles in the device's favour. Rebuilt: EPUBCheck 0/0, 163 tests pass. | **(human)** confirm on the device that the commentary is now Rashi script; then D2/D3/D4 and the Phase 1 device table can all be closed. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 to "one embedded family per stack, then a generic"? 3. D9, the expandable commentary, is still parked — say when. |
