@@ -59,12 +59,21 @@ class Layout:
     page_break_before_book: bool
 
 
-COMMENTARY_MODES = ("inline", "details")
+COMMENTARY_MODES = ("inline", "details", "popup")
 """How the commentary sits on the page — SPEC.md §12.3.
 
 ``inline``   every entry in the reading flow, under a רש״י divider.
-``details``  ``<details>``/``<summary>``, collapsed until the reader taps רש״י, so the
-             biblical text runs continuously. Native HTML5, no JavaScript (SPEC §13).
+``details``  ``<details>``/``<summary>``, collapsed until the reader taps רש״י. Native
+             HTML5, no JavaScript. Correct in Apple Books; **does not collapse on the
+             Kindle**, which is the target device (D9, 2026-09-12).
+``popup``    a רש״י marker at the end of the verse linking to an
+             ``<aside epub:type="footnote">``. This is the mechanism Amazon documents and
+             commercial Kindle books use: the marker becomes a tap target and the aside
+             opens as an overlay, so the reader never leaves the page. Readers without
+             popup support render the aside in place, which is the ``inline`` layout — so
+             it degrades to something already known to work.
+
+None of these change the verse markup, the ids or the navigation.
 """
 
 
@@ -75,7 +84,7 @@ class Commentary:
     @property
     def is_collapsible(self) -> bool:
         """True when the commentary is out of the reading flow until the reader opens it."""
-        return self.mode == "details"
+        return self.mode in ("details", "popup")
 
 
 @dataclass(frozen=True)

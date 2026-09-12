@@ -255,3 +255,71 @@ def test_an_unknown_mode_is_refused(tmp_path, config) -> None:
     path.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
     with pytest.raises(ValueError, match=r"commentary\.mode"):
         load_config(path)
+
+
+# ---- popup mode ---------------------------------------------------------
+
+
+def test_popup_marker_and_aside_are_linked_both_ways(rendered) -> None:
+    """Kindle needs bidirectional links: without the backlink the popup may not appear."""
+    tree = _tree(rendered, "popup")
+    markers = [
+        a for a in tree.iter(f"{XHTML}a") if "commentary-marker" in a.get("class", "").split()
+    ]
+    assert len(markers) == 9
+    for marker in markers:
+        assert marker.get("{http://www.idpf.org/2007/ops}type") == "noteref"
+        target = marker.get("href").lstrip("#")
+        aside = tree.find(f".//{XHTML}aside[@id='{target}']")
+        assert aside is not None, target
+        assert aside.get("{http://www.idpf.org/2007/ops}type") == "footnote"
+        back = aside.find(f".//{XHTML}a[@href='#{marker.get('id')}']")
+        assert back is not None, f"no backlink from {target}"
+        assert back.get("{http://www.idpf.org/2007/ops}type") == "backlink"
+
+
+def test_popup_marker_carries_the_hebrew_label(rendered, config) -> None:
+    for marker in _tree(rendered, "popup").iter(f"{XHTML}a"):
+        if "commentary-marker" in marker.get("class", "").split():
+            assert marker.text == config.commentator("Rashi").hebrew
+
+
+def test_popup_backlink_is_hebrew(rendered) -> None:
+    from tanakh_epub.rendering.html_renderer import BACKLINK_LABEL
+
+    assert BACKLINK_LABEL == "חזרה"
+    assert not BACKLINK_LABEL.isascii()
+    assert BACKLINK_LABEL in rendered["popup"].xhtml
+
+
+def test_popup_marker_sits_inside_the_verse(rendered) -> None:
+    """So the tap target is at the end of the verse it belongs to, not adrift."""
+    for verse in _tree(rendered, "popup").iter(f"{XHTML}div"):
+        if "verse" not in verse.get("class", "").split():
+            continue
+        markers = [
+            child for child in verse if "commentary-marker" in (child.get("class") or "").split()
+        ]
+        assert len(markers) <= 1
+        if markers:
+            assert list(verse)[-1] is markers[0], "the marker closes the verse"
+
+
+def test_popup_css_is_only_emitted_in_popup_mode(config) -> None:
+    assert ".commentary-marker" in render_css(_config(config, "popup"))
+    for other in ("inline", "details"):
+        assert ".commentary-marker" not in render_css(_config(config, other))
+
+
+def test_every_mode_keeps_the_biblical_text_identical(rendered) -> None:
+    """The popup marker is the one addition, and it lives outside `.biblical-text`."""
+    texts = {
+        mode: re.findall(
+            r'<span class="biblical-text">.*?</span>\s*(?=<|$)', rendered[mode].xhtml, re.S
+        )
+        for mode in COMMENTARY_MODES
+    }
+    baseline = [re.sub(r"\s+", " ", t) for t in texts["inline"]]
+    for mode in COMMENTARY_MODES:
+        assert [re.sub(r"\s+", " ", t) for t in texts[mode]] == baseline, mode
+    assert len(baseline) == 10

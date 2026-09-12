@@ -1,9 +1,12 @@
 {#- Shared fragments — SPEC.md §12. -#}
 
-{%- macro verse(unit) -%}
+{%- macro verse(unit, marker=false) -%}
 <div class="verse" id="{{ unit.verse_id }}">
           <span class="verse-number">{{ unit.verse_label }}</span>
           <span class="biblical-text">{{ unit.verse_html }}</span>
+          {%- if marker and unit.commentary %}
+          <a class="commentary-marker {{ unit.commentary.slug }}-marker" id="{{ unit.marker_id }}" href="#{{ unit.commentary_id }}" epub:type="noteref">{{ unit.commentary.hebrew }}</a>
+          {%- endif %}
         </div>
 {%- endmacro -%}
 

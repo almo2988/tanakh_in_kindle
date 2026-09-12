@@ -9,11 +9,18 @@
     and readers that honour it would otherwise leave a blank page before a Rashi that runs
     for several screens.
 
-  * `details` — the commentary is collapsed until the reader taps רש״י, so the biblical
-    text runs continuously. Native HTML5 `<details>`/`<summary>`, no JavaScript (§26, §36).
-    `<summary>` takes over the divider's job, so it keeps the divider's classes. The
-    `keep-together` wrapper is dropped here: there is nothing to hold beside the verse when
-    the commentary starts closed.
+  * `details` — collapsed until the reader taps רש״י. Native HTML5 `<details>`/`<summary>`,
+    no JavaScript (§26, §36). `<summary>` takes over the divider's job, so it keeps the
+    divider's classes. Correct in Apple Books; the Kindle does not collapse it (D9).
+
+  * `popup` — a רש״י marker closes the verse and links to an `<aside epub:type="footnote">`.
+    Amazon's own documented mechanism: the marker becomes a tap target and the aside opens
+    as an overlay, so the reader never leaves the page (§2). The links must be
+    **bidirectional** — without the backlink the popup may not appear at all. Readers with
+    no popup support render the aside in place, which is the `inline` layout.
+
+  Both collapsed modes drop the `keep-together` wrapper: there is nothing to hold beside the
+  verse when the commentary starts closed.
 
   Both keep the same verse and commentary-entry structure, so nothing downstream — ids,
   anchors, navigation — changes with the mode.
@@ -39,7 +46,7 @@
     <h2 class="chapter-heading">{{ chapter_label }}</h2>
 {%- for unit in units %}
     <section class="study-unit">
-{%- if collapsible %}
+{%- if mode == "details" %}
       {{ m.verse(unit) }}
       {%- if unit.commentary %}
       <details class="commentary {{ unit.commentary.slug }}" id="{{ unit.commentary_id }}">
@@ -48,6 +55,17 @@
         {{ m.commentary_entry(entry, unit.commentary.slug) }}
         {%- endfor %}
       </details>
+      {%- endif %}
+{%- elif mode == "popup" %}
+      {{ m.verse(unit, marker=true) }}
+      {%- if unit.commentary %}
+      <aside class="commentary {{ unit.commentary.slug }}" id="{{ unit.commentary_id }}" epub:type="footnote">
+        <div class="commentary-divider {{ unit.commentary.slug }}-divider">{{ unit.commentary.hebrew }}</div>
+        {%- for entry in unit.commentary.entries %}
+        {{ m.commentary_entry(entry, unit.commentary.slug) }}
+        {%- endfor %}
+        <p class="commentary-backlink"><a href="#{{ unit.marker_id }}" epub:type="backlink">{{ backlink_label }}</a></p>
+      </aside>
       {%- endif %}
 {%- else %}
       <div class="keep-together">

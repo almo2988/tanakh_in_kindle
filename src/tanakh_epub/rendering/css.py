@@ -89,6 +89,34 @@ def render_css(config: Config) -> str:
 
     # Only emitted in `details` mode — inert rules for elements that are not there would
     # just be dead weight in every chapter file.
+    popup_rules = (
+        f"""
+/* ---- Popup commentary ------------------------------------------------ */
+/* The marker closes the verse and opens the aside as an overlay on Kindle.
+   Readers without popup support show the aside in place, which is the inline
+   layout — so nothing here may assume the overlay exists. */
+
+.commentary-marker {{
+  font-family: "{biblical.family}", serif;
+  font-size: {_n(t.divider_scale)}em;
+  margin-right: 0.35em;
+}}
+
+aside.commentary {{
+  margin: 0.4em 0 0 0;
+}}
+
+.commentary-backlink {{
+  font-family: "{biblical.family}", serif;
+  font-size: {_n(t.divider_scale)}em;
+  text-align: center;
+  margin: 0.4em 0 0 0;
+}}
+"""
+        if config.commentary.mode == "popup"
+        else ""
+    )
+
     collapsible_rules = (
         """
 /* ---- Collapsible commentary ----------------------------------------- */
@@ -107,7 +135,7 @@ summary.commentary-divider {
   margin: 0 0 0.4em 0;
 }
 """
-        if config.commentary.is_collapsible
+        if config.commentary.mode == "details"
         else ""
     )
 
@@ -262,7 +290,7 @@ h1, h2 {{
   margin-left: 0.3em;
 }}
 
-{collapsible_rules}
+{collapsible_rules}{popup_rules}
 /* ---- Page-break hints ---------------------------------------------- */
 /* Only this small block asks to stay together: verse + divider + first
    entry. Wrapping a whole study unit would leave blank pages in readers

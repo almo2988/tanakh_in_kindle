@@ -20,6 +20,10 @@ from ..paths import TEMPLATES_DIR
 from ..processing.hebrew_numbers import chapter_label, verse_label
 from ..processing.markup import paragraphs
 
+BACKLINK_LABEL = "חזרה"
+"""The link out of a popup, for readers that render the aside in place rather than as an
+overlay. Hebrew, like everything else the reader sees (SPEC §6)."""
+
 HEBREW_MONTHS = (
     "בינואר",
     "בפברואר",
@@ -115,6 +119,11 @@ def _unit_context(unit: StudyUnit, book: BookInfo, config: Config) -> dict:
             if commentary
             else None
         ),
+        "marker_id": (
+            f"ref-{commentary_id(commentary['slug'], book, verse.chapter, verse.verse)}"
+            if commentary
+            else None
+        ),
         "verse_label": verse_label(verse.verse),
         # A verse is a single paragraph in practice; a break inside one is joined with a
         # line break rather than splitting SPEC §12.1's markup in two.
@@ -140,7 +149,8 @@ class ChapterRenderer:
             chapter_label=label,
             chapter_anchor=book.chapter_anchor(chapter.number),
             book_start=book_start,
-            collapsible=self.config.commentary.is_collapsible,
+            mode=self.config.commentary.mode,
+            backlink_label=BACKLINK_LABEL,
             units=[_unit_context(unit, book, self.config) for unit in chapter.study_units],
         )
 

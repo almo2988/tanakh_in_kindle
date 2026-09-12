@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | Phase 1 merged (PR #1). **Phase 1b in progress:** collapsible commentary built behind `commentary.mode`, default unchanged, awaiting the device test that decides it. |
-| **Blocked on** | one device test: `<details>`/`<summary>` through **Send to Kindle** on the Paperwhite. |
+| **Status** | Phase 1 merged (PR #1). **Phase 1b:** `<details>` **fails on the Kindle** — correct in Apple Books, does not collapse on the device. Popup mode (Amazon's documented mechanism) built as the successor; a control build is needed to attribute two other symptoms. |
+| **Blocked on** | one device round: the popup POC, plus an inline control sent the same way. |
 | **Last session** | 2026-09-12 |
-| **Next action** | **(human)** send `output/Genesis_Chapter_1_Details.epub` to the Kindle and report whether the רש״י bars start collapsed and open on a tap. |
+| **Next action** | **(human)** Send to Kindle **both** `Genesis_Chapter_1_Popup.epub` and `Genesis_Chapter_1_Inline.epub`. Does the popup open on a tap? And does the control also lose its TOC and font controls? |
 
 ---
 
@@ -186,8 +186,10 @@ fallback if this fails on the device (see the Phase 1 notes for that research).
 - [x] 1b.4 `--commentary-mode` on `build`, so the POC needs no config edit
 - [x] 1b.5 Entry ids now come from `BookInfo.slug` rather than a lower-cased Sefaria title
       (a latent bug: `I Samuel` gave `i-samuel` in ids and `samuel-1` in file names)
-- [x] 1b.6 `tests/test_commentary_modes.py` — 17 tests, including that the verse markup is
+- [x] 1b.6 `tests/test_commentary_modes.py` — 23 tests, including that the verse markup is
       byte-identical across modes and that nav + NCX are unchanged
+- [x] 1b.7 `popup` mode after `details` failed on the device: `<a epub:type="noteref">` in the
+      verse into an `<aside epub:type="footnote">`, linked both ways, with a Hebrew backlink
 
 **Exit criteria**
 - [x] `build --commentary-mode details` produces a valid EPUB; EPUBCheck 0 errors, 0 warnings
@@ -197,9 +199,11 @@ fallback if this fails on the device (see the Phase 1 notes for that research).
 - [ ] **(human)** works on the Paperwhite after Send to Kindle conversion
 
 **Human gate (human)**
-- [ ] Sent via Send to Kindle; the רש״י bars start **collapsed**
-- [ ] Tapping רש״י opens the commentary; tapping again closes it
-- [ ] D9 recorded, and `commentary.mode` default flipped to `details` if it passes
+- [x] ~~Sent via Send to Kindle; the רש״י bars start **collapsed**~~ — ✗, `details` does not collapse
+- [ ] `popup`: tapping רש״י opens the commentary as an overlay
+- [ ] The inline control, sent the same way, establishes whether the missing TOC and frozen
+      font size are Path B or were caused by `<details>`
+- [ ] D9 recorded, and `commentary.mode` default set to whichever mode the device accepts
 
 **Device results — Phase 1b** (✓ / ✗ / note)
 
@@ -213,11 +217,51 @@ fallback if this fails on the device (see the Phase 1 notes for that research).
 | Verse without Rashi (א׳:ג׳) shows no bar | | |
 | "Go to" still lists בראשית → פרק א׳ | | |
 
-**Status:** built and validated offline; awaiting the device.
+**Status:** `<details>` rejected by the device; `popup` built as its successor and awaiting test.
+
+**Device results — Phase 1b, round 1 (`details`, via Send to Kindle, 2026-09-12)**
+
+| Check | Send to Kindle | Calibre KFX |
+|---|---|---|
+| Commentary starts collapsed | ✗ renders permanently expanded | |
+| Tapping רש״י expands it | ✗ n/a | |
+| Table of contents in the "Go to" menu | ✗ missing | |
+| Font size adjustable from the Aa menu | ✗ text very small, control does nothing | |
+
+Apple Books renders it exactly as intended, so the markup is right and the Kindle is the
+constraint — which is the answer SPEC §0 defers to. **`<details>` is not viable on the
+target device.** The mode stays in the codebase because it is correct elsewhere and costs
+nothing, but it will never be the default.
+
+*Two of those symptoms are not yet attributable.* The missing TOC and the frozen font size
+have nothing to do with `<details>` in principle, and nothing in the generated stylesheet
+explains them — its smallest size is 0.75em and the `details`/`summary` rules set no size
+at all. Two candidates, and they need separating before either is believed:
+
+1. **One unsupported element derailed the conversion.** A converter that cannot place
+   `<details>` may fall back to a degraded rendering path, losing the navigation document
+   and the reflow controls along with the collapse. That would make all three symptoms one
+   bug.
+2. **It is Send to Kindle.** This is the first file ever delivered by Path B in this
+   project — every previous device test went through Kindle Previewer. SPEC §3.1 warns that
+   Amazon's server-side converter decides what survives, and a missing TOC and frozen font
+   size are exactly the kind of thing it decides.
+
+The control that separates them is one file: the **inline** build, sent the same way. If it
+also has no TOC and no font control, the cause is Path B and D1 answers itself. If it is
+fine, `<details>` poisoned the conversion.
+
+*Next: `popup`.* Where `<details>` is undocumented on Kindle, `<a epub:type="noteref">` into
+an `<aside epub:type="footnote">` is the mechanism Amazon documents and commercial Kindle
+books use — the marker becomes a tap target and the aside opens as an overlay, so the reader
+never leaves the page, which is what SPEC §2 requires. The links are bidirectional, without
+which the popup may not appear at all. Readers with no popup support render the aside in
+place, which is the `inline` layout — so unlike `<details>`, its failure mode is something
+already known to work.
 
 **Notes:**
 
-*The risk, stated plainly.* `<details>` is native HTML5 and EPUBCheck passes it with 0/0,
+*The risk, stated plainly, before the test.* `<details>` is native HTML5 and EPUBCheck passes it with 0/0,
 and it works in Apple Books, Kobo and Thorium. **Amazon documents no support for it**, and
 the community compatibility grids do not cover it, so the Kindle outcome is genuinely
 unknown. The three plausible results: it collapses (what we want); it renders permanently
@@ -350,7 +394,7 @@ otherwise, so nothing that already works can regress while this is being decided
 | D6 | Sefaria Rashi version | **provisional** — *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934* (Public Domain), Sefaria's primary Hebrew Rashi | 2026-09-11 | `sources.commentaries.Rashi`, `tests/fixtures/rashi_genesis_1.json` |
 | D7 | Sefaria index titles in `books.yaml` verified via API | **partial** — `Genesis` and `Rashi on Genesis` confirmed against the live API during fixture capture; the other 38 are still from SPEC §9 and are verified in Phase 2 | 2026-09-11 | `config/books.yaml` |
 | D8 | EPUB writer: hand-rolled (zipfile + Jinja2) vs `ebooklib` | **hand-rolled** — SPEC §32 admits `ebooklib` only if its output passes EPUBCheck *and* Kindle Previewer unmodified. Every file that matters here (OPF spine with `page-progression-direction`, the NCX kept beside the nav document, exact font media types) is one Kindle quirk away from needing a hand edit, and `zipfile` gives that control in ~100 lines. Passing EPUBCheck with 0 errors/0 warnings. | 2026-09-11 | `epub/builder.py` docstring |
-| D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **built, awaiting the device** — `<details>`/`<summary>`, chosen by the author. Implemented behind `commentary.mode` with `inline` still the default; the device test in Phase 1b decides whether the default flips. The popup route (`epub:type="noteref"` + `<aside epub:type="footnote">`) stays on record as the fallback. | 2026-09-12 | `commentary.mode`, `chapter.xhtml.j2`, Phase 1b |
+| D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **`<details>` ruled out on the device** — correct in Apple Books, does not collapse on the Paperwhite, and the same build lost its TOC and font controls. `popup` (`epub:type="noteref"` + `<aside epub:type="footnote">`), the mechanism Amazon documents, is built and awaiting test. Default stays `inline` until one passes. | 2026-09-12 | `commentary.mode`, `chapter.xhtml.j2`, Phase 1b |
 
 ---
 
@@ -358,6 +402,7 @@ otherwise, so nothing that already works can regress while this is being decided
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-12 (2) | 1b | `<details>` **fails on the Kindle**: renders permanently expanded, and the same build showed no table of contents and an unchangeable, very small font. Apple Books renders it exactly as intended, so the markup is right and the device is the constraint. Built `popup` as the successor — `<a epub:type="noteref">` into an `<aside epub:type="footnote">`, linked both ways with a Hebrew backlink, which is the mechanism Amazon documents and whose failure mode is the inline layout rather than a broken book. Ruled the stylesheet out of the font symptom: its smallest size is 0.75em and the details rules set none. EPUBCheck 0/0 on all three modes; 186 tests pass. | **(human)** Send to Kindle the popup POC **and** the inline control. | 1. Does the popup open on a tap? 2. Does the inline control also lose its TOC and font controls? If yes, those two symptoms are Send to Kindle (Path B), not `<details>`, and D1 answers itself. |
 | 2026-09-12 | 1b | Unparked D9 and built the collapsible commentary the author specified: native `<details>`/`<summary>`, no JavaScript, collapsed by default, behind a new `commentary.mode` whose default stays `inline` so nothing that works can regress. `<summary>` takes over the divider's role and keeps its classes; `keep-together` is dropped when collapsed. CSS is emitted only in that mode and stays inside SPEC §26 — no `display`, no `list-style`. Also fixed a latent bug found on the way: entry ids were built by lower-casing the Sefaria title, so `I Samuel` gave `i-samuel` in ids against `samuel-1` in file names; they now come from `BookInfo.slug`. 17 new tests, including that the verse markup is byte-identical across modes and nav + NCX are unchanged. EPUBCheck 0/0 on both modes; 180 tests pass. | **(human)** Send to Kindle the details POC and report whether the רש״י bars start collapsed and open on a tap. | 1. Does `<details>` collapse on the Paperwhite? Amazon documents no support, so this is genuinely unknown. 2. If the fonts look wrong in this test, that is Send to Kindle (Path B), not `<details>` — sideload the same file via Calibre KFX to tell them apart. |
 | 2026-09-11 (8) | 1 | **Cause found.** Round 7's two-paragraph diagnostic applies a second embedded font correctly on the device. Its rule names one embedded family plus a generic; `.commentary-text` named two — the only such rule in the stylesheet, and the only one that failed. `render_css` now emits one embedded family per stack followed by a generic, with two tests holding it there. Contradicts SPEC §16, which §0 settles in the device's favour. Rebuilt: EPUBCheck 0/0, 163 tests pass. | **(human)** confirm on the device that the commentary is now Rashi script; then D2/D3/D4 and the Phase 1 device table can all be closed. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 to "one embedded family per stack, then a generic"? 3. D9, the expandable commentary, is still parked — say when. |
 | 2026-09-11 (7) | 1 | Round 6 produced the fact that reframes the whole hunt: Hebrew rendered in an embedded font while Bookerly was selected and "Publisher Font" was not offered. Bookerly has no Hebrew, so the device was falling back to an embedded font to draw the script at all — font choice for Hebrew looks like its fallback logic, not our CSS, which would explain every earlier result (Rashi appeared exactly when Rashi was the `body` font). Cut the diagnostic down from ten mechanisms to two pages of two paragraphs and one yes/no question each, because the per-line format is what let round 4's flaw hide. EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/Font_Diagnostic.epub`; report per page whether the two paragraphs look the same or different. | Same on both pages means one font for all Hebrew: D3 becomes `rashi_script: false`, SPEC §15's two-font premise needs rewording, and the unused Rashi font should stop being embedded rather than sit there as a second fallback candidate. |

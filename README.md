@@ -29,17 +29,24 @@ python -m tanakh_epub check output/Genesis_Chapter_1.epub
 | Mode | Result |
 |---|---|
 | `inline` (default) | every entry in the reading flow, under a רש״י divider |
-| `details` | collapsed behind a רש״י bar; tap to open, tap to close |
+| `popup` | a רש״י marker ends the verse; tapping it opens the commentary as an overlay |
+| `details` | collapsed behind a רש״י bar — **correct in Apple Books, does not collapse on Kindle** |
 
 ```sh
 python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 \
     --commentary-mode details --output output/Genesis_Chapter_1_Details.epub
 ```
 
-`details` uses native HTML5 `<details>`/`<summary>` — no JavaScript. It works in Apple
-Books, Kobo and Thorium; **Amazon documents no support for it**, so whether a Kindle
-collapses it, renders it permanently expanded, or drops it has to be established on the
-device. `inline` stays the default until it is.
+Neither collapsed mode uses JavaScript.
+
+`details` is native HTML5 `<details>`/`<summary>`. It is correct in Apple Books, Kobo and
+Thorium, and **the Kindle renders it permanently expanded** — Amazon documents no support
+for it. It stays available for other readers but will not be the Kindle default.
+
+`popup` uses `<a epub:type="noteref">` into an `<aside epub:type="footnote">`, linked both
+ways. That is the mechanism Amazon documents and commercial Kindle books use, and where it
+is unsupported the aside simply renders in place — the `inline` layout. `inline` stays the
+default until the device confirms one of them.
 
 `check` runs EPUBCheck, and Kindle Previewer 3 as well if it is installed. Neither is
 required to build; both say "SKIPPED" rather than quietly passing when absent.
