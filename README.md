@@ -22,39 +22,34 @@ python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 \
 python -m tanakh_epub check output/Genesis_Chapter_1.epub
 ```
 
-### Page layout
+### Collapsible commentary
 
-The book is laid out like a printed מקראות גדולות page: a run of consecutive verses, then
-the Rashi on that whole run — two continuous streams rather than a verse-and-its-Rashi unit
-repeated down the page.
+`commentary.mode` decides how Rashi sits on the page:
 
-```
-א׳ בְּרֵאשִׁית…  ב׳ וְהָאָרֶץ…  ג׳ וַיֹּאמֶר…  ד׳ וַיַּרְא…  ה׳ וַיִּקְרָא…
-──────────────────── רש״י ────────────────────
-בראשית. אמר רבי יצחק…  ברא. …  תהו ובהו. …  יום אחד. …
-```
-
-| Setting | Meaning |
+| Mode | Result |
 |---|---|
-| `commentary.mode: blocks` (default) | the two-stream layout above |
-| `commentary.mode: interleaved` | each verse immediately followed by its own Rashi |
-| `commentary.block_chars: 420` | characters of biblical text per block — 3–5 verses in בראשית א׳ |
+| `inline` (default) | every entry in the reading flow, under a רש״י divider |
+| `popup` | a רש״י marker ends the verse; tapping it opens the commentary as an overlay |
+| `details` | collapsed behind a רש״י bar — **correct in Apple Books, does not collapse on Kindle** |
 
 ```sh
-python -m tanakh_epub build --chapter Genesis 1 --block-chars 600 \
-    --output output/Genesis_Chapter_1.epub
+python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 \
+    --commentary-mode details --output output/Genesis_Chapter_1_Details.epub
 ```
 
-`block_chars` sets how often the page alternates between the two regions, not the
-proportion between them — that is fixed by the content. In בראשית א׳ the Rashi runs about
-3.1× the biblical text and is set smaller, which lands near 40% Tanakh to 60% Rashi.
+Neither collapsed mode uses JavaScript.
 
-Nothing reserves a share of the screen: no `vh`, no pixel heights, no screen-size
-assumptions. How much of each region fits is the reader's reflow engine's decision and
-changes with the font size, which is intended.
+`details` is native HTML5 `<details>`/`<summary>`. It is correct in Apple Books, Kobo and
+Thorium, and **the Kindle renders it permanently expanded** — Amazon documents no support
+for it. It stays available for other readers but will not be the Kindle default.
 
-Every verse and every commentary segment carries its exact Sefaria reference in a
-`data-ref` attribute, so the canonical association never depends on the visual grouping.
+`popup` uses `<a epub:type="noteref">` into an `<aside epub:type="footnote">`, linked both
+ways. That is the mechanism Amazon documents and commercial Kindle books use, and where it
+is unsupported the aside simply renders in place — the `inline` layout. `inline` stays the
+default until the device confirms one of them.
+
+`check` runs EPUBCheck, and Kindle Previewer 3 as well if it is installed. Neither is
+required to build; both say "SKIPPED" rather than quietly passing when absent.
 
 Requires Python 3.12+. `scripts/epubcheck.sh` downloads EPUBCheck into `tools/` on first
 use (needs Java); `scripts/kindle_previewer.sh` cannot install Kindle Previewer, which is

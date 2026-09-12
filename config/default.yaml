@@ -73,22 +73,16 @@ typography:
   dibur_hamatchil_in_biblical_font: true   # square, so the reader can scan for it
 
 commentary:
-  # How the page is laid out — SPEC.md §2 (see PROGRESS.md → D9).
+  # How the commentary sits on the page.
+  #   inline   every entry in the reading flow under a רש״י divider (Phase 1 behaviour)
+  #   details  <details>/<summary>, collapsed until the reader taps רש״י
   #
-  #   blocks       a run of consecutive verses, then the Rashi on that whole run, in the
-  #                manner of a printed מקראות גדולות page: two continuous streams rather
-  #                than a verse-and-its-Rashi unit repeated down the page.
-  #   interleaved  each verse immediately followed by its own Rashi (the Phase 1 layout,
-  #                and what SPEC §2 as written requires).
-  mode: blocks
-
-  # How much biblical text goes in one block, in characters of Hebrew, before the Rashi on
-  # it is rendered. This is "as many consecutive verses as naturally fit" made concrete: a
-  # character budget rather than a verse count, because verse lengths vary enormously
-  # between books (a verse of תהלים against one of אסתר) and a fixed count would give wildly
-  # uneven blocks. A block always holds at least one verse. 420 gives 3–5 verses in
-  # בראשית א׳, which is about a printed page.
-  block_chars: 420
+  # PROVISIONAL (D9). `details` is native HTML5 with no JavaScript, and it works in Apple
+  # Books, Kobo and Thorium — but Amazon documents no support for it and the community
+  # compatibility grids do not cover it, so whether a Kindle collapses it, renders it
+  # permanently expanded, or drops it is a device question. Default stays `inline` until
+  # the Paperwhite says otherwise; see PROGRESS.md → D9.
+  mode: inline
 
 navigation:
   include_sections: false        # flat entries only if true (Kindle: max 2 nested levels)

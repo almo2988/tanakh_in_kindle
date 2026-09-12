@@ -59,17 +59,21 @@ class Layout:
     page_break_before_book: bool
 
 
-COMMENTARY_MODES = ("blocks", "interleaved")
-"""How verse and commentary are laid out on the page.
+COMMENTARY_MODES = ("inline", "details", "popup")
+"""How the commentary sits on the page — SPEC.md §12.3.
 
-``blocks``       a run of consecutive verses, then the Rashi on that whole run — two
-                 continuous streams, in the manner of a printed מקראות גדולות page.
-``interleaved``  each verse immediately followed by its own Rashi. This is what SPEC §2 as
-                 written requires; ``blocks`` supersedes it by the author's decision (D9)
-                 and §2 wants amending to match.
+``inline``   every entry in the reading flow, under a רש״י divider.
+``details``  ``<details>``/``<summary>``, collapsed until the reader taps רש״י. Native
+             HTML5, no JavaScript. Correct in Apple Books; **does not collapse on the
+             Kindle**, which is the target device (D9, 2026-09-12).
+``popup``    a רש״י marker at the end of the verse linking to an
+             ``<aside epub:type="footnote">``. This is the mechanism Amazon documents and
+             commercial Kindle books use: the marker becomes a tap target and the aside
+             opens as an overlay, so the reader never leaves the page. Readers without
+             popup support render the aside in place, which is the ``inline`` layout — so
+             it degrades to something already known to work.
 
-Both preserve the canonical association in the markup: every verse and every commentary
-entry carries its own id and its exact Sefaria reference, whatever the visual grouping.
+None of these change the verse markup, the ids or the navigation.
 """
 
 
@@ -77,12 +81,10 @@ entry carries its own id and its exact Sefaria reference, whatever the visual gr
 class Commentary:
     mode: str
 
-    block_chars: int
-    """Characters of biblical text per block before its commentary is rendered."""
-
     @property
-    def is_blocked(self) -> bool:
-        return self.mode == "blocks"
+    def is_collapsible(self) -> bool:
+        """True when the commentary is out of the reading flow until the reader opens it."""
+        return self.mode in ("details", "popup")
 
 
 @dataclass(frozen=True)
@@ -236,7 +238,7 @@ def load_config(path: Path | None = None) -> Config:
     commentary_raw = raw.get("commentary") or {}
     navigation_raw = raw.get("navigation") or {}
 
-    mode = commentary_raw.get("mode", "blocks")
+    mode = commentary_raw.get("mode", "inline")
     if mode not in COMMENTARY_MODES:
         raise ValueError(
             f'{path}: commentary.mode is "{mode}"; expected one of {list(COMMENTARY_MODES)}'
@@ -267,7 +269,7 @@ def load_config(path: Path | None = None) -> Config:
                 typography_raw.get("dibur_hamatchil_in_biblical_font", True)
             ),
         ),
-        commentary=Commentary(mode=mode, block_chars=int(commentary_raw.get("block_chars", 420))),
+        commentary=Commentary(mode=mode),
         layout=Layout(
             file_per="chapter",
             max_file_kb=int(layout_raw.get("max_file_kb", 300)),
