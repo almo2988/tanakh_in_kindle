@@ -1,0 +1,38 @@
+{#- Package document — SPEC.md §17, §28. `page-progression-direction="rtl"` plus
+    `dc:language he` is what makes the Kindle turn pages right-to-left. -#}
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0"
+         unique-identifier="book-id" xml:lang="he" dir="rtl"
+         prefix="{{ meta_prefix }}">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="book-id">{{ identifier }}</dc:identifier>
+    <dc:title>{{ title }}</dc:title>
+    <dc:language>he</dc:language>
+{%- if creator %}
+    <dc:creator>{{ creator }}</dc:creator>
+{%- endif %}
+{%- if publisher %}
+    <dc:publisher>{{ publisher }}</dc:publisher>
+{%- endif %}
+{%- for rights in rights_statements %}
+    <dc:rights>{{ rights }}</dc:rights>
+{%- endfor %}
+    <meta property="dcterms:modified">{{ modified }}</meta>
+{%- for meta in custom_meta %}
+    <meta property="{{ meta.property }}">{{ meta.value }}</meta>
+{%- endfor %}
+{%- if cover_id %}
+    <meta name="cover" content="{{ cover_id }}"/>
+{%- endif %}
+  </metadata>
+  <manifest>
+{%- for item in manifest %}
+    <item id="{{ item.id }}" href="{{ item.href }}" media-type="{{ item.media_type }}"{% if item.properties %} properties="{{ item.properties }}"{% endif %}/>
+{%- endfor %}
+  </manifest>
+  <spine toc="ncx" page-progression-direction="rtl">
+{%- for item in spine %}
+    <itemref idref="{{ item }}"/>
+{%- endfor %}
+  </spine>
+</package>

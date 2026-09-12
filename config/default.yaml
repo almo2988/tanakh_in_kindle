@@ -1,0 +1,94 @@
+# Build configuration — SPEC.md §30.
+#
+# Values marked "PROVISIONAL (Dn)" are waiting on a decision in PROGRESS.md → Decisions.
+# They are real, working values, not placeholders that break the build; they are simply
+# not frozen until the human has tested on the Paperwhite.
+
+title: "תנ״ך עם פירוש רש״י"
+creator: "ספריא"
+publisher: "ספריא"
+
+target:
+  device: kindle-paperwhite-12     # documentation only; nothing branches on it
+  delivery: calibre-kfx            # PROVISIONAL (D1) — SPEC §3.1 default until both paths are tested
+
+include:
+  tanakh: true
+  commentaries: [Rashi]            # names as in config/commentators.yaml
+
+sources:
+  # Phase 1 builds from tests/fixtures/, which were captured from these exact versions.
+  # D5 and D6 freeze the versions for the real fetch in Phase 2; the values below are what
+  # the fixtures actually contain, so the sources page and build manifest stay truthful.
+  tanakh:
+    provider: sefaria
+    version_title: "Miqra according to the Masorah"   # PROVISIONAL (D5) — has טעמים
+    language: he
+    license: "CC-BY-SA"
+    source_url: "https://www.sefaria.org/Genesis"
+    checked: 2026-09-11
+  commentaries:
+    Rashi:
+      provider: sefaria
+      version_title: "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934"  # PROVISIONAL (D6)
+      language: he
+      license: "Public Domain"
+      source_url: "https://www.sefaria.org/Rashi_on_Genesis"
+      checked: 2026-09-11
+
+fonts:
+  # Both licenses verified against the font's own name table (IDs 0/13) and the project
+  # LICENSE file shipped next to it; both report fsType 0 (installable embedding).
+  #
+  # `family` must be the font's OWN internal family name (name ID 1), not a label of our
+  # choosing. CSS says an @font-face family name overrides whatever is in the font data,
+  # and Apple Books honours that — but a reader that matches on the embedded font's real
+  # name instead will find nothing and fall back silently. Matching costs nothing and
+  # removes the question. tests/test_fonts.py enforces it.
+  biblical:
+    file: fonts/TaameyFrankCLM-Medium.ttf
+    family: "Taamey Frank CLM"
+    name: "Taamey Frank CLM Medium 0.110"
+    license: "GNU GPL v2 with font-embedding exception"
+    license_file: fonts/LICENSE-TaameyFrankCLM.txt
+  rashi:
+    # D3, decided 2026-09-11: real Rashi script, OFL, static TTF. Replaces the square
+    # placeholder the first device test rejected.
+    file: fonts/NotoRashiHebrew-Regular.ttf
+    family: "Noto Rashi Hebrew"
+    name: "Noto Rashi Hebrew Regular 1.007"
+    license: "SIL Open Font License 1.1"
+    license_file: fonts/LICENSE-NotoRashiHebrew.txt
+
+typography:
+  biblical_scale: 1.25
+  rashi_scale: 0.9               # PROVISIONAL (D4) — Rashi script needs more size than a
+                                 # square face at the same nominal em; raise again if the
+                                 # Paperwhite says so
+  verse_number_scale: 0.75
+  divider_scale: 0.85
+  rashi_script: true             # D3 decided: commentary is set in real Rashi script.
+                                 # false falls back to the biblical font (SPEC §15.2) —
+                                 # the escape hatch if Rashi script proves illegible.
+  dibur_hamatchil_in_biblical_font: true   # square, so the reader can scan for it
+
+navigation:
+  include_sections: false        # flat entries only if true (Kindle: max 2 nested levels)
+  include_books: true
+  include_chapters: true
+
+layout:
+  file_per: chapter
+  max_file_kb: 300
+  page_break_before_book: true
+
+cover:
+  mode: none                     # none | generated | custom — generated cover lands in Phase 3 (3.5)
+  path: null
+
+debug:
+  show_empty_commentary: false
+
+output:
+  dir: output
+  filename: Tanakh_with_Rashi.epub

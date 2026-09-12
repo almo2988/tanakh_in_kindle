@@ -1,0 +1,19 @@
+# Downloaded Sefaria content and derived data — never committed (SPEC_DATA_SOURCE §11).
+data/cache/
+data/processed/
+
+# Build products.
+output/
+
+# Third-party tooling fetched by scripts/ (EPUBCheck, Kindle Previewer helpers).
+tools/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage

@@ -1,0 +1,15 @@
+# Commentators — SPEC.md §30.
+#
+# Rendering is driven by this table, never hard-coded to Rashi: the divider label and
+# the CSS class come from here, so adding Ramban or Ibn Ezra later is a config change.
+#
+# hebrew          divider label and any rendered reference to the commentator
+# slug            second CSS class on the commentary section (`commentary rashi`)
+# sefaria_prefix  prepended to a book title to form the Sefaria index ("Rashi on Genesis")
+#                 and, with an entry number, the source reference ("Rashi on Genesis 1:1:1")
+
+commentators:
+  Rashi:
+    hebrew: "רש״י"
+    slug: rashi
+    sefaria_prefix: "Rashi on "
