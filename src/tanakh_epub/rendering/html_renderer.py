@@ -66,10 +66,24 @@ class RenderedChapter:
         return len(self.xhtml.encode("utf-8"))
 
 
-def _entry_context(entry: CommentaryEntry) -> dict:
+def commentary_id(slug: str, book: BookInfo, chapter: int, verse: int) -> str:
+    """``rashi-genesis-1-1`` — the id of a verse's whole commentary block."""
+    return f"{slug}-{book.verse_id(chapter, verse)}"
+
+
+def entry_id(slug: str, book: BookInfo, entry: CommentaryEntry) -> str:
+    """``rashi-genesis-1-1-2`` — one entry within that block.
+
+    The book part comes from `books.yaml` via `BookInfo.slug`, never from lower-casing the
+    Sefaria title: that would give `i-samuel` here and `samuel-1` in the file name for the
+    same book (CLAUDE.md conventions, SPEC §9).
+    """
+    return f"{commentary_id(slug, book, entry.chapter, entry.verse)}-{entry.entry_number}"
+
+
+def _entry_context(entry: CommentaryEntry, slug: str, book: BookInfo) -> dict:
     return {
-        "id": f"{entry.commentator.lower()}-{entry.book.replace(' ', '-').lower()}"
-        f"-{entry.chapter}-{entry.verse}-{entry.entry_number}",
+        "id": entry_id(slug, book, entry),
         "dibur_hamatchil": entry.dibur_hamatchil,
         # markup.py has already escaped these and emitted only internal tags.
         "paragraphs": [Markup(p) for p in paragraphs(entry.text)],
@@ -89,13 +103,18 @@ def _unit_context(unit: StudyUnit, book: BookInfo, config: Config) -> dict:
         commentary = {
             "slug": info.slug,
             "hebrew": info.hebrew,
-            "entries": [_entry_context(entry) for entry in unit.commentaries],
+            "entries": [_entry_context(entry, info.slug, book) for entry in unit.commentaries],
         }
         if not commentary["entries"]:
             commentary = None
 
     return {
         "verse_id": book.verse_id(verse.chapter, verse.verse),
+        "commentary_id": (
+            commentary_id(commentary["slug"], book, verse.chapter, verse.verse)
+            if commentary
+            else None
+        ),
         "verse_label": verse_label(verse.verse),
         # A verse is a single paragraph in practice; a break inside one is joined with a
         # line break rather than splitting SPEC §12.1's markup in two.
@@ -121,6 +140,7 @@ class ChapterRenderer:
             chapter_label=label,
             chapter_anchor=book.chapter_anchor(chapter.number),
             book_start=book_start,
+            collapsible=self.config.commentary.is_collapsible,
             units=[_unit_context(unit, book, self.config) for unit in chapter.study_units],
         )
 

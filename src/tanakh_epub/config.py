@@ -59,6 +59,25 @@ class Layout:
     page_break_before_book: bool
 
 
+COMMENTARY_MODES = ("inline", "details")
+"""How the commentary sits on the page — SPEC.md §12.3.
+
+``inline``   every entry in the reading flow, under a רש״י divider.
+``details``  ``<details>``/``<summary>``, collapsed until the reader taps רש״י, so the
+             biblical text runs continuously. Native HTML5, no JavaScript (SPEC §13).
+"""
+
+
+@dataclass(frozen=True)
+class Commentary:
+    mode: str
+
+    @property
+    def is_collapsible(self) -> bool:
+        """True when the commentary is out of the reading flow until the reader opens it."""
+        return self.mode == "details"
+
+
 @dataclass(frozen=True)
 class Navigation:
     include_sections: bool
@@ -96,6 +115,7 @@ class Config:
     rashi_font: FontInfo
     typography: Typography
     layout: Layout
+    commentary: Commentary
     navigation: Navigation
     cover_mode: str
     show_empty_commentary: bool
@@ -206,7 +226,14 @@ def load_config(path: Path | None = None) -> Config:
 
     typography_raw = raw.get("typography") or {}
     layout_raw = raw.get("layout") or {}
+    commentary_raw = raw.get("commentary") or {}
     navigation_raw = raw.get("navigation") or {}
+
+    mode = commentary_raw.get("mode", "inline")
+    if mode not in COMMENTARY_MODES:
+        raise ValueError(
+            f'{path}: commentary.mode is "{mode}"; expected one of {list(COMMENTARY_MODES)}'
+        )
 
     if layout_raw.get("file_per", "chapter") != "chapter":
         # SPEC.md §11: one file per book is withdrawn, not configurable.
@@ -233,6 +260,7 @@ def load_config(path: Path | None = None) -> Config:
                 typography_raw.get("dibur_hamatchil_in_biblical_font", True)
             ),
         ),
+        commentary=Commentary(mode=mode),
         layout=Layout(
             file_per="chapter",
             max_file_kb=int(layout_raw.get("max_file_kb", 300)),

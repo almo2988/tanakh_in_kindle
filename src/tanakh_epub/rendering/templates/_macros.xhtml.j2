@@ -1,5 +1,12 @@
 {#- Shared fragments — SPEC.md §12. -#}
 
+{%- macro verse(unit) -%}
+<div class="verse" id="{{ unit.verse_id }}">
+          <span class="verse-number">{{ unit.verse_label }}</span>
+          <span class="biblical-text">{{ unit.verse_html }}</span>
+        </div>
+{%- endmacro -%}
+
 {%- macro commentary_entry(entry, slug) -%}
 <div class="commentary-entry {{ slug }}" id="{{ entry.id }}">
         {%- for paragraph in entry.paragraphs %}

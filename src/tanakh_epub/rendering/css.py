@@ -87,6 +87,30 @@ def render_css(config: Config) -> str:
         f'"{biblical.family}", serif' if t.dibur_hamatchil_in_biblical_font else commentary_stack
     )
 
+    # Only emitted in `details` mode — inert rules for elements that are not there would
+    # just be dead weight in every chapter file.
+    collapsible_rules = (
+        """
+/* ---- Collapsible commentary ----------------------------------------- */
+/* `<summary>` takes over the divider's job, so it inherits .commentary-divider
+   and only adds height: it is a tap target on a 7" screen, not just a label.
+   The disclosure marker is the user agent's own and is deliberately left
+   alone — `display` and `list-style` are both outside SPEC §26, and a reader
+   that draws no marker still has the ruled רש״י bar as the affordance. */
+
+details.commentary {
+  margin: 0.4em 0 0 0;
+}
+
+summary.commentary-divider {
+  padding: 0.35em 0;
+  margin: 0 0 0.4em 0;
+}
+"""
+        if config.commentary.is_collapsible
+        else ""
+    )
+
     book_break = (
         "  break-before: page;\n  page-break-before: always;\n"
         if config.layout.page_break_before_book
@@ -238,6 +262,7 @@ h1, h2 {{
   margin-left: 0.3em;
 }}
 
+{collapsible_rules}
 /* ---- Page-break hints ---------------------------------------------- */
 /* Only this small block asks to stay together: verse + divider + first
    entry. Wrapping a whole study unit would leave blank pages in readers

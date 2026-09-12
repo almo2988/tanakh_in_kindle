@@ -22,6 +22,25 @@ python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 \
 python -m tanakh_epub check output/Genesis_Chapter_1.epub
 ```
 
+### Collapsible commentary
+
+`commentary.mode` decides how Rashi sits on the page:
+
+| Mode | Result |
+|---|---|
+| `inline` (default) | every entry in the reading flow, under a רש״י divider |
+| `details` | collapsed behind a רש״י bar; tap to open, tap to close |
+
+```sh
+python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 \
+    --commentary-mode details --output output/Genesis_Chapter_1_Details.epub
+```
+
+`details` uses native HTML5 `<details>`/`<summary>` — no JavaScript. It works in Apple
+Books, Kobo and Thorium; **Amazon documents no support for it**, so whether a Kindle
+collapses it, renders it permanently expanded, or drops it has to be established on the
+device. `inline` stays the default until it is.
+
 `check` runs EPUBCheck, and Kindle Previewer 3 as well if it is installed. Neither is
 required to build; both say "SKIPPED" rather than quietly passing when absent.
 

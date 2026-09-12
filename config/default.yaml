@@ -72,6 +72,18 @@ typography:
                                  # the escape hatch if Rashi script proves illegible.
   dibur_hamatchil_in_biblical_font: true   # square, so the reader can scan for it
 
+commentary:
+  # How the commentary sits on the page.
+  #   inline   every entry in the reading flow under a רש״י divider (Phase 1 behaviour)
+  #   details  <details>/<summary>, collapsed until the reader taps רש״י
+  #
+  # PROVISIONAL (D9). `details` is native HTML5 with no JavaScript, and it works in Apple
+  # Books, Kobo and Thorium — but Amazon documents no support for it and the community
+  # compatibility grids do not cover it, so whether a Kindle collapses it, renders it
+  # permanently expanded, or drops it is a device question. Default stays `inline` until
+  # the Paperwhite says otherwise; see PROGRESS.md → D9.
+  mode: inline
+
 navigation:
   include_sections: false        # flat entries only if true (Kindle: max 2 nested levels)
   include_books: true

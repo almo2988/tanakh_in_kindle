@@ -15,7 +15,7 @@ from pathlib import Path
 
 from . import __version__
 from .books import BookTable, load_books
-from .config import Config, load_config
+from .config import COMMENTARY_MODES, Commentary, Config, load_config
 from .epub.builder import EpubBuilder
 from .paths import PROJECT_ROOT
 from .processing.study_units import ChapterSelection, load_chapters, stats
@@ -57,6 +57,12 @@ def _parser() -> argparse.ArgumentParser:
         help="stop after verse N — for the POC build (בראשית א׳:א׳–י׳)",
     )
     build.add_argument("--no-commentary", action="store_true", help="verses only")
+    build.add_argument(
+        "--commentary-mode",
+        choices=COMMENTARY_MODES,
+        default=None,
+        help="override commentary.mode: inline (in the flow) or details (tap רש״י to open)",
+    )
     build.add_argument("--output", type=Path, default=None, help="output .epub path")
 
     check = subparsers.add_parser(
@@ -102,6 +108,8 @@ def cmd_build(args) -> int:
     config = load_config(args.config)
     books = load_books()
 
+    if args.commentary_mode:
+        config = Config(**{**vars(config), "commentary": Commentary(mode=args.commentary_mode)})
     if args.no_commentary:
         config = Config(**{**vars(config), "commentaries": ()})
 
@@ -144,6 +152,7 @@ def cmd_build(args) -> int:
     print(f"Built {shown}")
     print(f"  identifier         {result.identifier}")
     print(f"  chapter files      {len(result.chapters)}")
+    print(f"  commentary mode    {config.commentary.mode}")
     print(f"  verses             {counts.verses}")
     print(
         f"  commentary entries {counts.commentary_entries} "
