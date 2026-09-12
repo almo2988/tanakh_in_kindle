@@ -61,7 +61,14 @@ def _parser() -> argparse.ArgumentParser:
         "--commentary-mode",
         choices=COMMENTARY_MODES,
         default=None,
-        help="override commentary.mode: inline (in the flow) or details (tap רש״י to open)",
+        help="override commentary.mode: blocks (two streams) or interleaved (verse by verse)",
+    )
+    build.add_argument(
+        "--block-chars",
+        type=int,
+        default=None,
+        metavar="N",
+        help="characters of biblical text per block, in the blocks layout",
     )
     build.add_argument("--output", type=Path, default=None, help="output .epub path")
 
@@ -108,8 +115,16 @@ def cmd_build(args) -> int:
     config = load_config(args.config)
     books = load_books()
 
-    if args.commentary_mode:
-        config = Config(**{**vars(config), "commentary": Commentary(mode=args.commentary_mode)})
+    if args.commentary_mode or args.block_chars:
+        config = Config(
+            **{
+                **vars(config),
+                "commentary": Commentary(
+                    mode=args.commentary_mode or config.commentary.mode,
+                    block_chars=args.block_chars or config.commentary.block_chars,
+                ),
+            }
+        )
     if args.no_commentary:
         config = Config(**{**vars(config), "commentaries": ()})
 

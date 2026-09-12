@@ -1,9 +1,12 @@
-"""Collapsible commentary — `commentary.mode` (decision D9).
+"""Page layout — `commentary.mode` (decision D9).
 
-`details` collapses each verse's Rashi behind a רש״י summary so the biblical text runs
-continuously, using native HTML5 with no JavaScript. The requirement that shapes most of
-these tests is that **only** the commentary's presentation changes: the verse markup, the
-ids, the navigation and the stylesheet's Kindle-safety must all be identical to `inline`.
+`blocks` renders a run of consecutive verses, then the Rashi on that whole run, after the
+manner of a printed מקראות גדולות page. `interleaved` keeps each verse with its own Rashi,
+which is the Phase 1 layout and what SPEC §2 as written requires.
+
+The property that matters most here is that the visual grouping is *presentation only*: the
+canonical verse↔commentary association has to survive in the markup regardless of which
+region a passage is rendered in, which is what the ids and `data-ref` attributes are for.
 """
 
 from __future__ import annotations
@@ -19,18 +22,21 @@ import pytest
 from tanakh_epub.config import COMMENTARY_MODES, Commentary
 from tanakh_epub.epub.builder import EpubBuilder
 from tanakh_epub.rendering.css import render_css
-from tanakh_epub.rendering.html_renderer import ChapterRenderer
+from tanakh_epub.rendering.html_renderer import ChapterRenderer, group_into_blocks, visible_length
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
+EPUB_TYPE = "{http://www.idpf.org/2007/ops}type"
 
 
-def _config(config, mode: str):
-    return dataclasses.replace(config, commentary=Commentary(mode=mode))
+def _config(config, mode: str, block_chars: int | None = None):
+    return dataclasses.replace(
+        config,
+        commentary=Commentary(mode=mode, block_chars=block_chars or config.commentary.block_chars),
+    )
 
 
 @pytest.fixture(scope="module")
 def rendered(config, books, genesis_chapter_1):
-    """The same chapter rendered in every mode."""
     chapters, _, _ = genesis_chapter_1
     return {
         mode: ChapterRenderer(_config(config, mode), books).render(chapters[0], book_start=True)
@@ -39,10 +45,10 @@ def rendered(config, books, genesis_chapter_1):
 
 
 @pytest.fixture(scope="module")
-def details_epub(tmp_path_factory, config, books, genesis_chapter_1):
+def blocks_epub(tmp_path_factory, config, books, genesis_chapter_1):
     chapters, text_versions, commentary_versions = genesis_chapter_1
-    output = tmp_path_factory.mktemp("details") / "details.epub"
-    EpubBuilder(_config(config, "details"), books).build(
+    output = tmp_path_factory.mktemp("blocks") / "blocks.epub"
+    EpubBuilder(_config(config, "blocks"), books).build(
         chapters,
         output=output,
         text_versions=text_versions,
@@ -56,270 +62,213 @@ def _tree(rendered, mode):
     return ElementTree.fromstring(rendered[mode].xhtml)
 
 
-# ---- the collapsible structure ------------------------------------------
+def _by_class(tree, tag, css_class):
+    return [e for e in tree.iter(f"{XHTML}{tag}") if css_class in e.get("class", "").split()]
 
 
-def test_details_mode_wraps_commentary_in_details_with_a_summary(rendered) -> None:
-    tree = _tree(rendered, "details")
-    blocks = tree.iter(f"{XHTML}details")
-    count = 0
+# ---- two continuous streams ---------------------------------------------
+
+
+def test_blocks_is_the_default(config) -> None:
+    assert config.commentary.mode == "blocks"
+
+
+def test_a_block_holds_several_verses_then_their_commentary(rendered) -> None:
+    tree = _tree(rendered, "blocks")
+    blocks = _by_class(tree, "section", "study-block")
+    assert blocks, "no study blocks rendered"
     for block in blocks:
-        summary = block.find(f"{XHTML}summary")
-        assert summary is not None, "every <details> needs a <summary>"
-        assert "commentary" in block.get("class", "").split()
-        count += 1
-    assert count == 9, "nine of the ten POC verses have Rashi"
+        verses = _by_class(block, "span", "verse")
+        assert verses, "a block with no verses"
+    assert any(len(_by_class(b, "span", "verse")) > 1 for b in blocks), (
+        "every block held a single verse — that is the interleaved layout, not two streams"
+    )
 
 
-def test_collapsed_by_default(rendered) -> None:
-    """No `open` attribute anywhere — that is the whole point of the change."""
-    assert "<details" in rendered["details"].xhtml
-    for block in _tree(rendered, "details").iter(f"{XHTML}details"):
-        assert block.get("open") is None
+def test_verses_are_a_continuous_run_not_a_container_each(rendered) -> None:
+    """"It should not force ... a separate container after every verse.""" ""
+    tree = _tree(rendered, "blocks")
+    for flow in _by_class(tree, "p", "biblical-flow"):
+        for child in flow:
+            assert child.tag == f"{XHTML}span", "a verse became a block-level container"
+            assert "verse" in child.get("class", "").split()
+    assert _by_class(tree, "div", "verse") == [], "no verse should be a <div> in this layout"
 
 
-def test_summary_is_the_hebrew_commentator_label(rendered, config) -> None:
-    for summary in _tree(rendered, "details").iter(f"{XHTML}summary"):
-        assert summary.text == config.commentator("Rashi").hebrew == "רש״י"
-        assert "commentary-divider" in summary.get("class", "").split()
+def test_commentary_is_a_continuous_run_too(rendered) -> None:
+    tree = _tree(rendered, "blocks")
+    flows = _by_class(tree, "p", "commentary-flow")
+    assert flows
+    for flow in flows:
+        for child in flow:
+            assert child.tag == f"{XHTML}span"
+            assert "commentary-entry" in child.get("class", "").split()
 
 
-def test_every_entry_sits_inside_the_details_block(rendered) -> None:
-    tree = _tree(rendered, "details")
-    inside = {
-        entry.get("id")
-        for block in tree.iter(f"{XHTML}details")
-        for entry in block.iter(f"{XHTML}div")
-        if "commentary-entry" in entry.get("class", "").split()
-    }
-    everywhere = {
-        entry.get("id")
-        for entry in tree.iter(f"{XHTML}div")
-        if "commentary-entry" in entry.get("class", "").split()
-    }
-    assert inside == everywhere
-    assert len(everywhere) == 17
+def test_the_tanakh_region_comes_before_the_rashi_region(rendered) -> None:
+    for block in _by_class(_tree(rendered, "blocks"), "section", "study-block"):
+        classes = [child.get("class", "").split()[0] for child in block]
+        assert classes[0] == "tanakh"
+        assert classes[1:] in ([], ["commentary-divider", "commentary"])
 
 
-def test_a_verse_without_rashi_gets_no_details_block(rendered) -> None:
-    """בראשית א׳:ג׳ — SPEC §22 holds in both modes."""
-    units = [
-        unit
-        for unit in _tree(rendered, "details").iter(f"{XHTML}section")
-        if "study-unit" in unit.get("class", "").split()
+def test_no_verse_and_its_own_rashi_form_a_visual_unit(rendered) -> None:
+    """The thing the author explicitly did not want: verse, rashi, verse, rashi."""
+    assert "study-unit" not in rendered["blocks"].xhtml
+    assert "keep-together" not in rendered["blocks"].xhtml
+
+
+# ---- the association survives the regrouping ----------------------------
+
+
+def test_every_verse_keeps_its_id_and_canonical_reference(rendered) -> None:
+    verses = _by_class(_tree(rendered, "blocks"), "span", "verse")
+    assert [v.get("id") for v in verses] == [f"genesis-1-{n}" for n in range(1, 11)]
+    assert [v.get("data-ref") for v in verses] == [f"Genesis 1:{n}" for n in range(1, 11)]
+
+
+def test_every_commentary_segment_keeps_its_exact_sefaria_reference(rendered) -> None:
+    """ "The Rashi stream must preserve the exact canonical Sefaria reference for every
+    commentary segment."" """
+    entries = _by_class(_tree(rendered, "blocks"), "span", "commentary-entry")
+    assert len(entries) == 17
+    for entry in entries:
+        ref = entry.get("data-ref")
+        assert re.fullmatch(r"Rashi on Genesis 1:\d+:\d+", ref), ref
+        chapter, verse, number = (int(p) for p in ref.split()[-1].split(":"))
+        assert entry.get("id") == f"rashi-genesis-{chapter}-{verse}-{number}"
+
+
+def test_commentary_keeps_canonical_order_across_the_whole_block(rendered) -> None:
+    """Entries stay in verse order and then source order (SPEC §23), even though they are
+    no longer grouped by verse."""
+    refs = [
+        e.get("data-ref") for e in _by_class(_tree(rendered, "blocks"), "span", "commentary-entry")
     ]
-    third = units[2]
-    assert third.find(f".//{XHTML}div[@id='genesis-1-3']") is not None
-    assert list(third.iter(f"{XHTML}details")) == []
+    keys = [tuple(int(p) for p in r.split()[-1].split(":")) for r in refs]
+    assert keys == sorted(keys)
 
 
-def test_no_keep_together_wrapper_when_collapsed(rendered) -> None:
-    """Nothing to hold beside the verse when the commentary starts closed (SPEC §13)."""
-    assert "keep-together" not in rendered["details"].xhtml
-    assert "keep-together" in rendered["inline"].xhtml
-
-
-def test_no_javascript_in_either_mode(rendered) -> None:
-    for mode in COMMENTARY_MODES:
-        lowered = rendered[mode].xhtml.lower()
-        assert "<script" not in lowered
-        assert "javascript:" not in lowered
-        assert "onclick" not in lowered
-
-
-# ---- what must NOT change ----------------------------------------------
-
-
-def test_the_biblical_text_is_byte_identical_across_modes(rendered) -> None:
-    """ "Do not modify the Biblical text" — checked literally, on the rendered markup."""
-    verses = {
-        mode: re.findall(r'<div class="verse".*?</div>', rendered[mode].xhtml, re.S)
-        for mode in COMMENTARY_MODES
+def test_a_verse_without_rashi_contributes_nothing_to_the_rashi_stream(rendered) -> None:
+    """בראשית א׳:ג׳ has no Rashi, and must not produce an empty segment (SPEC §22)."""
+    refs = {
+        e.get("data-ref") for e in _by_class(_tree(rendered, "blocks"), "span", "commentary-entry")
     }
-    inline = [re.sub(r"\s+", " ", v) for v in verses["inline"]]
-    details = [re.sub(r"\s+", " ", v) for v in verses["details"]]
-    assert inline == details
-    assert len(inline) == 10
+    assert not any(r.startswith("Rashi on Genesis 1:3:") for r in refs)
+    verses = {v.get("id") for v in _by_class(_tree(rendered, "blocks"), "span", "verse")}
+    assert "genesis-1-3" in verses, "the verse itself must still be there"
 
 
-def test_ids_and_filenames_are_unchanged_across_modes(rendered) -> None:
-    for mode in COMMENTARY_MODES:
-        assert rendered[mode].filename == "genesis-001.xhtml"
-        assert rendered[mode].anchor == "chapter-1"
-    ids = {
-        mode: sorted(
-            element.get("id")
-            for element in _tree(rendered, mode).iter()
-            if element.get("id") and not element.get("id").startswith("rashi-genesis-1-1-")
-        )
-        for mode in COMMENTARY_MODES
-    }
-    # The only new id in details mode is the <details> block itself, one per commented verse.
-    extra = set(ids["details"]) - set(ids["inline"])
-    assert all(re.fullmatch(r"rashi-genesis-1-\d+", new) for new in extra), extra
+def test_the_biblical_text_is_identical_in_both_layouts(rendered) -> None:
+    def texts(mode):
+        return [
+            re.sub(r"\s+", " ", "".join(span.itertext()))
+            for span in _by_class(_tree(rendered, mode), "span", "biblical-text")
+        ]
+
+    assert texts("blocks") == texts("interleaved")
+    assert len(texts("blocks")) == 10
 
 
-def test_navigation_is_identical_across_modes(details_epub, poc_epub) -> None:
-    """ "Do not modify the navigation structure."" """
-
+def test_navigation_is_identical_in_both_layouts(blocks_epub, poc_epub) -> None:
     def nav_and_ncx(path):
         with zipfile.ZipFile(path) as zf:
             return zf.read("OEBPS/nav.xhtml"), zf.read("OEBPS/toc.ncx")
 
-    assert nav_and_ncx(details_epub) == nav_and_ncx(poc_epub)
+    assert nav_and_ncx(blocks_epub) == nav_and_ncx(poc_epub)
 
 
-def test_entry_ids_use_the_book_slug_not_a_lowercased_title(books) -> None:
-    """`I Samuel` must give `samuel-1`, matching the file name — not `i-samuel`."""
-    from tanakh_epub.models import CommentaryEntry
-    from tanakh_epub.rendering.html_renderer import commentary_id, entry_id
+# ---- how blocks are sized -----------------------------------------------
 
-    samuel = books.by_title("I Samuel")
-    entry = CommentaryEntry(
-        commentator="Rashi",
-        book="I Samuel",
-        chapter=3,
-        verse=14,
-        entry_number=2,
-        dibur_hamatchil=None,
-        text="x",
-        source_provider="Sefaria",
-        source_version="v",
-        source_reference="Rashi on I Samuel 3:14:2",
-    )
-    assert commentary_id("rashi", samuel, 3, 14) == "rashi-samuel-1-3-14"
-    assert entry_id("rashi", samuel, entry) == "rashi-samuel-1-3-14-2"
+
+def test_a_block_fills_to_the_character_budget() -> None:
+    units = [{"verse_length": 100, "verse_id": f"v{i}", "commentary": None} for i in range(6)]
+    blocks = group_into_blocks(units, 250)
+    assert [len(b["verses"]) for b in blocks] == [3, 3]
+
+
+def test_a_verse_longer_than_the_budget_still_gets_a_block() -> None:
+    units = [{"verse_length": 9999, "verse_id": "v0", "commentary": None}]
+    assert len(group_into_blocks(units, 100)) == 1
+
+
+def test_a_smaller_budget_makes_more_blocks(config, books, genesis_chapter_1) -> None:
+    chapters, _, _ = genesis_chapter_1
+    counts = {}
+    for budget in (200, 900):
+        xhtml = (
+            ChapterRenderer(_config(config, "blocks", budget), books)
+            .render(chapters[0], book_start=False)
+            .xhtml
+        )
+        counts[budget] = xhtml.count('class="study-block"')
+    assert counts[200] > counts[900] >= 1
+
+
+def test_block_budget_counts_visible_characters_not_markup() -> None:
+    assert visible_length('<span class="letter-large">בְּ</span>רֵאשִׁית') == len("בְּרֵאשִׁית")
 
 
 # ---- stylesheet ---------------------------------------------------------
 
 
-def test_details_css_is_only_emitted_in_details_mode(config) -> None:
-    assert "summary.commentary-divider" in render_css(_config(config, "details"))
-    assert "summary" not in render_css(_config(config, "inline"))
+def test_block_css_is_only_emitted_for_the_block_layout(config) -> None:
+    assert ".biblical-flow" in render_css(_config(config, "blocks"))
+    assert ".biblical-flow" not in render_css(_config(config, "interleaved"))
 
 
-def test_details_css_stays_within_the_kindle_safe_properties(config) -> None:
-    """SPEC §26 — and in particular no `display`, which `<summary>` tempts you to set."""
-    families = ("margin", "padding", "border", "font", "break", "page-break")
-    allowed = {"text-align", "line-height", "text-indent", "src", "content"}
-    body = re.sub(r"/\*.*?\*/", "", render_css(_config(config, "details")), flags=re.S)
-    used = {m.group(1).strip() for m in re.finditer(r"(?m)^\s*([a-z-]+)\s*:", body)}
-    unexpected = {
-        prop
-        for prop in used
-        if prop not in allowed and not any(prop == f or prop.startswith(f + "-") for f in families)
-    }
-    assert not unexpected, unexpected
-    assert "display" not in used
-    assert "list-style" not in used
+def test_no_collapsible_machinery_remains(config) -> None:
+    """`details` and the noteref popup were both tried on the device and rejected."""
+    for mode in COMMENTARY_MODES:
+        css = render_css(_config(config, mode))
+        assert "summary" not in css
+        assert "commentary-marker" not in css
+    assert "details" not in COMMENTARY_MODES
+    assert "popup" not in COMMENTARY_MODES
 
 
-def test_rashi_font_and_scaling_survive_the_mode(config) -> None:
-    """ "Preserve the Rashi font and responsive font sizing."" """
-    css = render_css(_config(config, "details"))
-    assert f'font-family: "{config.rashi_font.family}", serif;' in css
-    assert f"font-size: {config.typography.rashi_scale:g}em" in css
-    assert not re.search(r"[\d.]+\s*(px|pt|vh|vw)\b", css)
+def test_block_css_reserves_no_share_of_the_screen(config) -> None:
+    """ "must not use fixed vh, pixel heights, or screen-size assumptions."" """
+    css = re.sub(r"/\*.*?\*/", "", render_css(_config(config, "blocks")), flags=re.S)
+    assert not re.search(r"[\d.]+\s*(px|pt|vh|vw|cm|mm|in)\b", css)
+    declared = {m.group(1) for m in re.finditer(r"(?m)^\s*([a-z-]+)\s*:", css)}
+    forbidden = {"height", "max-height", "min-height", "position", "display", "float"}
+    assert not (declared & forbidden), declared & forbidden
+    assert not any(p.startswith("column") for p in declared), declared
+
+
+def test_rashi_font_and_scale_survive_the_layout(config) -> None:
+    for mode in COMMENTARY_MODES:
+        css = render_css(_config(config, mode))
+        assert f'font-family: "{config.rashi_font.family}", serif;' in css
+        assert f"font-size: {config.typography.rashi_scale:g}em" in css
+        assert f"font-size: {config.typography.biblical_scale:g}em" in css
+        assert config.typography.rashi_scale < config.typography.biblical_scale
 
 
 # ---- the packaged book --------------------------------------------------
 
 
-def test_details_epub_is_rtl_and_well_formed(details_epub) -> None:
-    with zipfile.ZipFile(details_epub) as zf:
+def test_blocks_epub_is_valid_rtl_and_within_the_size_limit(blocks_epub, config) -> None:
+    with zipfile.ZipFile(blocks_epub) as zf:
         page = zf.read("OEBPS/text/genesis-001.xhtml")
-    root = ElementTree.fromstring(page)
-    assert root.get("dir") == "rtl"
-    assert root.get("lang") == "he"
-    assert root.find(f"{XHTML}body").get("dir") == "rtl"
-    assert b"<details" in page
-
-
-def test_details_epub_has_no_oversized_chapter(details_epub, config) -> None:
-    with zipfile.ZipFile(details_epub) as zf:
         for name in zf.namelist():
             if name.startswith("OEBPS/text/"):
                 assert zf.getinfo(name).file_size <= config.layout.max_file_kb * 1024
+    root = ElementTree.fromstring(page)
+    assert root.get("dir") == "rtl"
+    assert root.find(f"{XHTML}body").get("dir") == "rtl"
 
 
-def test_an_unknown_mode_is_refused(tmp_path, config) -> None:
+def test_an_unknown_mode_is_refused(tmp_path) -> None:
     import yaml
 
     from tanakh_epub.config import load_config
     from tanakh_epub.paths import DEFAULT_CONFIG
 
     raw = yaml.safe_load(DEFAULT_CONFIG.read_text(encoding="utf-8"))
-    raw["commentary"] = {"mode": "accordion"}
+    raw["commentary"] = {"mode": "columns"}
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
     with pytest.raises(ValueError, match=r"commentary\.mode"):
         load_config(path)
-
-
-# ---- popup mode ---------------------------------------------------------
-
-
-def test_popup_marker_and_aside_are_linked_both_ways(rendered) -> None:
-    """Kindle needs bidirectional links: without the backlink the popup may not appear."""
-    tree = _tree(rendered, "popup")
-    markers = [
-        a for a in tree.iter(f"{XHTML}a") if "commentary-marker" in a.get("class", "").split()
-    ]
-    assert len(markers) == 9
-    for marker in markers:
-        assert marker.get("{http://www.idpf.org/2007/ops}type") == "noteref"
-        target = marker.get("href").lstrip("#")
-        aside = tree.find(f".//{XHTML}aside[@id='{target}']")
-        assert aside is not None, target
-        assert aside.get("{http://www.idpf.org/2007/ops}type") == "footnote"
-        back = aside.find(f".//{XHTML}a[@href='#{marker.get('id')}']")
-        assert back is not None, f"no backlink from {target}"
-        assert back.get("{http://www.idpf.org/2007/ops}type") == "backlink"
-
-
-def test_popup_marker_carries_the_hebrew_label(rendered, config) -> None:
-    for marker in _tree(rendered, "popup").iter(f"{XHTML}a"):
-        if "commentary-marker" in marker.get("class", "").split():
-            assert marker.text == config.commentator("Rashi").hebrew
-
-
-def test_popup_backlink_is_hebrew(rendered) -> None:
-    from tanakh_epub.rendering.html_renderer import BACKLINK_LABEL
-
-    assert BACKLINK_LABEL == "חזרה"
-    assert not BACKLINK_LABEL.isascii()
-    assert BACKLINK_LABEL in rendered["popup"].xhtml
-
-
-def test_popup_marker_sits_inside_the_verse(rendered) -> None:
-    """So the tap target is at the end of the verse it belongs to, not adrift."""
-    for verse in _tree(rendered, "popup").iter(f"{XHTML}div"):
-        if "verse" not in verse.get("class", "").split():
-            continue
-        markers = [
-            child for child in verse if "commentary-marker" in (child.get("class") or "").split()
-        ]
-        assert len(markers) <= 1
-        if markers:
-            assert list(verse)[-1] is markers[0], "the marker closes the verse"
-
-
-def test_popup_css_is_only_emitted_in_popup_mode(config) -> None:
-    assert ".commentary-marker" in render_css(_config(config, "popup"))
-    for other in ("inline", "details"):
-        assert ".commentary-marker" not in render_css(_config(config, other))
-
-
-def test_every_mode_keeps_the_biblical_text_identical(rendered) -> None:
-    """The popup marker is the one addition, and it lives outside `.biblical-text`."""
-    texts = {
-        mode: re.findall(
-            r'<span class="biblical-text">.*?</span>\s*(?=<|$)', rendered[mode].xhtml, re.S
-        )
-        for mode in COMMENTARY_MODES
-    }
-    baseline = [re.sub(r"\s+", " ", t) for t in texts["inline"]]
-    for mode in COMMENTARY_MODES:
-        assert [re.sub(r"\s+", " ", t) for t in texts[mode]] == baseline, mode
-    assert len(baseline) == 10

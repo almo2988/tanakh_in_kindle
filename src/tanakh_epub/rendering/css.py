@@ -89,53 +89,42 @@ def render_css(config: Config) -> str:
 
     # Only emitted in `details` mode — inert rules for elements that are not there would
     # just be dead weight in every chapter file.
-    popup_rules = (
-        f"""
-/* ---- Popup commentary ------------------------------------------------ */
-/* The marker closes the verse and opens the aside as an overlay on Kindle.
-   Readers without popup support show the aside in place, which is the inline
-   layout — so nothing here may assume the overlay exists. */
-
-.commentary-marker {{
-  font-family: "{biblical.family}", serif;
-  font-size: {_n(t.divider_scale)}em;
-  margin-right: 0.35em;
-}}
-
-aside.commentary {{
-  margin: 0.4em 0 0 0;
-}}
-
-.commentary-backlink {{
-  font-family: "{biblical.family}", serif;
-  font-size: {_n(t.divider_scale)}em;
-  text-align: center;
-  margin: 0.4em 0 0 0;
-}}
-"""
-        if config.commentary.mode == "popup"
-        else ""
-    )
-
-    collapsible_rules = (
+    # Emitted only for the two-stream layout; inert rules in every chapter file otherwise.
+    block_rules = (
         """
-/* ---- Collapsible commentary ----------------------------------------- */
-/* `<summary>` takes over the divider's job, so it inherits .commentary-divider
-   and only adds height: it is a tap target on a 7" screen, not just a label.
-   The disclosure marker is the user agent's own and is deliberately left
-   alone — `display` and `list-style` are both outside SPEC §26, and a reader
-   that draws no marker still has the ruled רש״י bar as the affordance. */
+/* ---- Two streams: מקראות גדולות ------------------------------------- */
+/* A run of verses, then the Rashi on that whole run. Each region is one
+   continuous paragraph, so neither is chopped up by the structure of the
+   other. Nothing here reserves a proportion of the screen: there is no vh,
+   no px and no assumption about screen size (SPEC §14, §26). How much of
+   each region the reader sees is the reflow engine's decision, and changes
+   with the font size — which is the intended behaviour, not a compromise. */
 
-details.commentary {
-  margin: 0.4em 0 0 0;
+.study-block {
+  margin: 0 0 1.4em 0;
 }
 
-summary.commentary-divider {
-  padding: 0.35em 0;
-  margin: 0 0 0.4em 0;
+.biblical-flow {
+  margin: 0;
+  text-indent: 0;
+}
+
+.commentary-flow {
+  margin: 0;
+  text-indent: 0;
+}
+
+/* A verse is a run inside the stream, not a box: the space after it is what
+   separates it from the next, exactly as in a printed חומש. */
+.biblical-flow .verse {
+  margin-left: 0.25em;
+}
+
+.commentary-flow .commentary-entry {
+  margin-left: 0.4em;
 }
 """
-        if config.commentary.mode == "details"
+        if config.commentary.is_blocked
         else ""
     )
 
@@ -290,11 +279,17 @@ h1, h2 {{
   margin-left: 0.3em;
 }}
 
-{collapsible_rules}{popup_rules}
+{block_rules}
 /* ---- Page-break hints ---------------------------------------------- */
-/* Only this small block asks to stay together: verse + divider + first
-   entry. Wrapping a whole study unit would leave blank pages in readers
-   that honour the hint, and Kindle ignores it either way (SPEC §13). */
+/* Kept deliberately few. A break hint around anything large leaves blank
+   pages in readers that honour it, and Kindle ignores them all anyway
+   (SPEC §13, §27) — so nothing here may be depended on, and the layout does
+   not force page breaks of its own.
+
+   In the interleaved layout one small block asks to stay together: verse +
+   divider + first entry. The two-stream layout has no equivalent: a run of
+   verses and its commentary are each too long to hold, and holding them
+   would be exactly the blank-page problem. */
 
 .keep-together {{
   break-inside: avoid;

@@ -7,6 +7,7 @@ performs HTTP (SPEC.md §20).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -20,9 +21,13 @@ from ..paths import TEMPLATES_DIR
 from ..processing.hebrew_numbers import chapter_label, verse_label
 from ..processing.markup import paragraphs
 
-BACKLINK_LABEL = "חזרה"
-"""The link out of a popup, for readers that render the aside in place rather than as an
-overlay. Hebrew, like everything else the reader sees (SPEC §6)."""
+TAG = re.compile(r"<[^>]*>")
+
+
+def visible_length(internal_markup: str) -> int:
+    """Characters the reader actually sees, tags excluded — what block budgets count."""
+    return len(TAG.sub("", internal_markup))
+
 
 HEBREW_MONTHS = (
     "בינואר",
@@ -88,9 +93,15 @@ def entry_id(slug: str, book: BookInfo, entry: CommentaryEntry) -> str:
 def _entry_context(entry: CommentaryEntry, slug: str, book: BookInfo) -> dict:
     return {
         "id": entry_id(slug, book, entry),
+        # The exact Sefaria reference travels with every segment, so the visual grouping
+        # never has to be trusted to say which verse a passage explains.
+        "ref": entry.source_reference,
         "dibur_hamatchil": entry.dibur_hamatchil,
         # markup.py has already escaped these and emitted only internal tags.
         "paragraphs": [Markup(p) for p in paragraphs(entry.text)],
+        # Inside a continuous stream an entry is one run of text; a break within it stays a
+        # break rather than silently becoming a space.
+        "flow": Markup("<br/>").join(Markup(p) for p in paragraphs(entry.text)),
     }
 
 
@@ -114,6 +125,8 @@ def _unit_context(unit: StudyUnit, book: BookInfo, config: Config) -> dict:
 
     return {
         "verse_id": book.verse_id(verse.chapter, verse.verse),
+        "verse_ref": verse.reference.canonical_ref(),
+        "verse_length": visible_length(verse.hebrew_text),
         "commentary_id": (
             commentary_id(commentary["slug"], book, verse.chapter, verse.verse)
             if commentary
@@ -132,6 +145,49 @@ def _unit_context(unit: StudyUnit, book: BookInfo, config: Config) -> dict:
     }
 
 
+def group_into_blocks(units: list[dict], block_chars: int) -> list[dict]:
+    """Gather consecutive verses into blocks, each followed by the commentary on all of them.
+
+    "As many consecutive verses as naturally fit" has no exact answer in a reflowable
+    document — the reader's screen and font size decide what fits, and this code cannot see
+    either. What it can do is keep blocks to a consistent amount of *text*, which is what a
+    printed page holds constant. A character budget rather than a verse count, because
+    verse lengths differ enormously between books.
+
+    A block always takes at least one verse, so a single verse longer than the budget still
+    gets its own block rather than none.
+    """
+    blocks: list[dict] = []
+    current: list[dict] = []
+    length = 0
+
+    for unit in units:
+        current.append(unit)
+        length += unit["verse_length"]
+        if length >= block_chars:
+            blocks.append(_block(current))
+            current, length = [], 0
+
+    if current:
+        blocks.append(_block(current))
+    return blocks
+
+
+def _block(units: list[dict]) -> dict:
+    commentary = None
+    entries = [
+        entry for unit in units if unit["commentary"] for entry in unit["commentary"]["entries"]
+    ]
+    if entries:
+        first = next(unit["commentary"] for unit in units if unit["commentary"])
+        commentary = {"slug": first["slug"], "hebrew": first["hebrew"], "entries": entries}
+    return {
+        "id": f"block-{units[0]['verse_id']}",
+        "verses": units,
+        "commentary": commentary,
+    }
+
+
 class ChapterRenderer:
     def __init__(self, config: Config, books: BookTable, environment: Environment | None = None):
         self.config = config
@@ -143,6 +199,7 @@ class ChapterRenderer:
         label = chapter_label(chapter.number)
         title = f"{book.hebrew_title} {label}"
 
+        units = [_unit_context(unit, book, self.config) for unit in chapter.study_units]
         xhtml = self.env.get_template("chapter.xhtml.j2").render(
             page_title=title,
             book_hebrew_title=book.hebrew_title,
@@ -150,8 +207,8 @@ class ChapterRenderer:
             chapter_anchor=book.chapter_anchor(chapter.number),
             book_start=book_start,
             mode=self.config.commentary.mode,
-            backlink_label=BACKLINK_LABEL,
-            units=[_unit_context(unit, book, self.config) for unit in chapter.study_units],
+            units=units,
+            blocks=group_into_blocks(units, self.config.commentary.block_chars),
         )
 
         return RenderedChapter(

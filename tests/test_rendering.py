@@ -15,8 +15,22 @@ XHTML = "{http://www.w3.org/1999/xhtml}"
 
 @pytest.fixture(scope="module")
 def rendered(config, books, genesis_chapter_1):
+    """Rendered in the `interleaved` layout.
+
+    The structural assertions below describe SPEC §12.2 and §13 — the verse-and-its-Rashi
+    unit and the `keep-together` block — which is what `interleaved` renders. The default
+    `blocks` layout is covered in tests/test_commentary_modes.py; both stay tested.
+    """
+    import dataclasses
+
+    from tanakh_epub.config import Commentary
+
     chapters, _, _ = genesis_chapter_1
-    return ChapterRenderer(config, books).render_all(chapters)[0]
+    interleaved = dataclasses.replace(
+        config,
+        commentary=Commentary(mode="interleaved", block_chars=config.commentary.block_chars),
+    )
+    return ChapterRenderer(interleaved, books).render_all(chapters)[0]
 
 
 @pytest.fixture(scope="module")
@@ -56,7 +70,7 @@ def test_one_file_per_chapter_named_by_slug(rendered) -> None:
 
 def test_book_heading_only_on_the_first_chapter_of_a_book(config, books, genesis_chapter_1) -> None:
     chapters, _, _ = genesis_chapter_1
-    renderer = ChapterRenderer(config, books)
+    renderer = ChapterRenderer(config, books)  # layout-independent
     first = renderer.render(chapters[0], book_start=True)
     later = renderer.render(chapters[0], book_start=False)
     assert 'class="book-heading"' in first.xhtml
@@ -250,7 +264,8 @@ def test_css_uses_only_kindle_safe_properties(config) -> None:
 
 
 def test_css_has_no_javascript_or_layout_tricks(config) -> None:
-    css = render_css(config)
+    """Comments are stripped first: they discuss the very units they must not use."""
+    css = re.sub(r"/\*.*?\*/", "", render_css(config), flags=re.S)
     for forbidden in ("display:", "position:", "grid", "flex", "@page", "vh", "vw", "calc("):
         assert forbidden not in css, forbidden
 

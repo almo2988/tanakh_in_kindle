@@ -1,19 +1,24 @@
 {#- Shared fragments — SPEC.md §12. -#}
 
-{%- macro verse(unit, marker=false) -%}
-<div class="verse" id="{{ unit.verse_id }}">
+{%- macro verse_block(unit) -%}
+<div class="verse" id="{{ unit.verse_id }}" data-ref="{{ unit.verse_ref }}">
           <span class="verse-number">{{ unit.verse_label }}</span>
           <span class="biblical-text">{{ unit.verse_html }}</span>
-          {%- if marker and unit.commentary %}
-          <a class="commentary-marker {{ unit.commentary.slug }}-marker" id="{{ unit.marker_id }}" href="#{{ unit.commentary_id }}" epub:type="noteref">{{ unit.commentary.hebrew }}</a>
-          {%- endif %}
         </div>
 {%- endmacro -%}
 
-{%- macro commentary_entry(entry, slug) -%}
-<div class="commentary-entry {{ slug }}" id="{{ entry.id }}">
+{%- macro verse_run(unit) -%}
+<span class="verse" id="{{ unit.verse_id }}" data-ref="{{ unit.verse_ref }}"><span class="verse-number">{{ unit.verse_label }}</span> <span class="biblical-text">{{ unit.verse_html }}</span></span>
+{%- endmacro -%}
+
+{%- macro commentary_block(entry, slug) -%}
+<div class="commentary-entry {{ slug }}" id="{{ entry.id }}" data-ref="{{ entry.ref }}">
         {%- for paragraph in entry.paragraphs %}
         <p class="commentary-text">{% if loop.first and entry.dibur_hamatchil %}<span class="dibur-hamatchil">{{ entry.dibur_hamatchil }}</span> {% endif %}{{ paragraph }}</p>
         {%- endfor %}
       </div>
+{%- endmacro -%}
+
+{%- macro commentary_run(entry, slug) -%}
+<span class="commentary-entry {{ slug }}" id="{{ entry.id }}" data-ref="{{ entry.ref }}">{% if entry.dibur_hamatchil %}<span class="dibur-hamatchil">{{ entry.dibur_hamatchil }}</span> {% endif %}{{ entry.flow }}</span>
 {%- endmacro -%}
