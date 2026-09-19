@@ -19,6 +19,7 @@ from ..models import Chapter, CommentaryEntry, StudyUnit
 from ..paths import TEMPLATES_DIR
 from ..processing.hebrew_numbers import chapter_label, verse_label
 from ..processing.markup import paragraphs
+from .css import CommentaryParts
 
 HEBREW_MONTHS = (
     "בינואר",
@@ -73,16 +74,20 @@ def entry_id(slug: str, book: BookInfo, entry: CommentaryEntry) -> str:
     return f"{slug}-{book.verse_id(entry.chapter, entry.verse)}-{entry.entry_number}"
 
 
-def _entry_context(entry: CommentaryEntry, slug: str, book: BookInfo) -> dict:
+def _entry_context(
+    entry: CommentaryEntry, slug: str, book: BookInfo, parts: CommentaryParts
+) -> dict:
     return {
         "id": entry_id(slug, book, entry),
         "dibur_hamatchil": entry.dibur_hamatchil,
         # markup.py has already escaped these and emitted only internal tags.
-        "paragraphs": [Markup(p) for p in paragraphs(entry.text)],
+        "paragraphs": [
+            {"html": Markup(p), "part": parts.assign(p)} for p in paragraphs(entry.text)
+        ],
     }
 
 
-def _unit_context(unit: StudyUnit, book: BookInfo, config: Config) -> dict:
+def _unit_context(unit: StudyUnit, book: BookInfo, config: Config, parts: CommentaryParts) -> dict:
     verse = unit.verse
     verse_paragraphs = paragraphs(verse.hebrew_text)
 
@@ -95,7 +100,9 @@ def _unit_context(unit: StudyUnit, book: BookInfo, config: Config) -> dict:
         commentary = {
             "slug": info.slug,
             "hebrew": info.hebrew,
-            "entries": [_entry_context(entry, info.slug, book) for entry in unit.commentaries],
+            "entries": [
+                _entry_context(entry, info.slug, book, parts) for entry in unit.commentaries
+            ],
         }
         if not commentary["entries"]:
             commentary = None
@@ -116,7 +123,12 @@ class ChapterRenderer:
         self.books = books
         self.env = environment or build_environment()
 
-    def render(self, chapter: Chapter, *, book_start: bool) -> RenderedChapter:
+    def render(
+        self, chapter: Chapter, *, book_start: bool, parts: CommentaryParts | None = None
+    ) -> RenderedChapter:
+        """`parts` is planned over the whole book by `render_all`; a chapter rendered on its
+        own gets a plan of its own."""
+        parts = parts or CommentaryParts.plan([chapter], self.config)
         book = self.books.by_title(chapter.book)
         label = chapter_label(chapter.number)
         title = f"{book.hebrew_title} {label}"
@@ -127,7 +139,7 @@ class ChapterRenderer:
             chapter_label=label,
             chapter_anchor=book.chapter_anchor(chapter.number),
             book_start=book_start,
-            units=[_unit_context(unit, book, self.config) for unit in chapter.study_units],
+            units=[_unit_context(unit, book, self.config, parts) for unit in chapter.study_units],
         )
 
         return RenderedChapter(
@@ -139,13 +151,16 @@ class ChapterRenderer:
             xhtml=xhtml,
         )
 
-    def render_all(self, chapters: list[Chapter]) -> list[RenderedChapter]:
+    def render_all(
+        self, chapters: list[Chapter], parts: CommentaryParts | None = None
+    ) -> list[RenderedChapter]:
+        parts = parts or CommentaryParts.plan(chapters, self.config)
         seen_books: set[str] = set()
         rendered: list[RenderedChapter] = []
         for chapter in chapters:
             first = chapter.book not in seen_books
             seen_books.add(chapter.book)
-            rendered.append(self.render(chapter, book_start=first))
+            rendered.append(self.render(chapter, book_start=first, parts=parts))
         return rendered
 
     def render_sources(self, *, build_date: datetime) -> str:

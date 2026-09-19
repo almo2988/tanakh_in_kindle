@@ -8,7 +8,7 @@ from xml.etree import ElementTree
 import pytest
 
 from tanakh_epub.models import CommentaryEntry
-from tanakh_epub.rendering.css import render_css
+from tanakh_epub.rendering.css import COMMENTARY_PART_FAMILY, CommentaryParts, render_css
 from tanakh_epub.rendering.html_renderer import ChapterRenderer, entry_id, hebrew_date
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
@@ -213,6 +213,65 @@ def test_no_font_stack_names_two_embedded_families(config) -> None:
                 continue
             named = [family for family in families if f'"{family}"' in line]
             assert len(named) <= 1, f"two embedded families in one stack: {line.strip()}"
+
+
+def _volume(element) -> int:
+    return len("".join(element.itertext()))
+
+
+def test_rashi_font_is_never_the_heaviest_first_family(config, books, provider) -> None:
+    """Kindle's converter makes the first family covering the most text the book's default
+    font, and the reader's font menu replaces the default. The Rashi font got that slot in
+    every build until the commentary was dealt over placeholder parts; on a whole chapter
+    the biblical text must now outweigh every single part."""
+    from tanakh_epub.processing.study_units import ChapterSelection, load_chapters
+
+    chapters, _, _ = load_chapters(
+        provider, config, [ChapterSelection(books.by_title("Genesis"), (1,))]
+    )
+    tree = ElementTree.fromstring(ChapterRenderer(config, books).render_all(chapters)[0].xhtml)
+    verses = sum(_volume(e) for e in _find_all(tree, "span", "biblical-text"))
+    loads: dict[str, int] = {}
+    for p in _find_all(tree, "p", "commentary-text"):
+        part = [c for c in _class(p).split() if c.startswith("part-")]
+        assert len(part) == 1, f"commentary paragraph without a part: {_class(p)}"
+        loads[part[0]] = loads.get(part[0], 0) + _volume(p)
+    assert len(loads) > 1
+    assert max(loads.values()) < verses
+
+
+def test_a_build_too_small_to_protect_says_so(config, genesis_chapter_1) -> None:
+    """The ten-verse POC: Rashi on 1:1 alone outweighs all ten verses."""
+    from tanakh_epub.processing.markup import paragraphs
+
+    chapters, _, _ = genesis_chapter_1
+    parts = CommentaryParts.plan(chapters, config)
+    for unit in chapters[0].study_units:
+        for entry in unit.commentaries:
+            for paragraph in paragraphs(entry.text):
+                parts.assign(paragraph)
+    assert not parts.protects_rashi_font
+
+
+def test_every_part_falls_through_to_the_rashi_font(config) -> None:
+    css = render_css(config, commentary_parts=3)
+    embedded = {config.biblical_font.family, config.rashi_font.family}
+    for i in range(3):
+        stack = f'"{COMMENTARY_PART_FAMILY} {i}", "{config.rashi_font.family}", serif'
+        assert f".commentary-text.part-{i} {{\n  font-family: {stack};" in css
+        assert f"{COMMENTARY_PART_FAMILY} {i}" not in embedded
+
+
+def test_no_parts_without_rashi_script(config, genesis_chapter_1) -> None:
+    """With `rashi_script: false` the commentary is in the biblical font already."""
+    import dataclasses
+
+    chapters, _, _ = genesis_chapter_1
+    variant = dataclasses.replace(
+        config, typography=dataclasses.replace(config.typography, rashi_script=False)
+    )
+    assert CommentaryParts.plan(chapters, variant).count == 0
+    assert CommentaryParts.plan(chapters, config).count > 1
 
 
 def test_every_font_stack_ends_in_a_generic_fallback(config) -> None:
