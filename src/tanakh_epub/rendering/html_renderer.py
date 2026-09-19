@@ -66,10 +66,16 @@ class RenderedChapter:
         return len(self.xhtml.encode("utf-8"))
 
 
-def _entry_context(entry: CommentaryEntry) -> dict:
+def entry_id(slug: str, book: BookInfo, entry: CommentaryEntry) -> str:
+    """``rashi-genesis-1-1-2``. The book part comes from `books.yaml` via `BookInfo.slug`,
+    never from lower-casing the Sefaria title: that gave `i-samuel` here and `samuel-1` in
+    the file name for the same book (CLAUDE.md conventions, SPEC §9)."""
+    return f"{slug}-{book.verse_id(entry.chapter, entry.verse)}-{entry.entry_number}"
+
+
+def _entry_context(entry: CommentaryEntry, slug: str, book: BookInfo) -> dict:
     return {
-        "id": f"{entry.commentator.lower()}-{entry.book.replace(' ', '-').lower()}"
-        f"-{entry.chapter}-{entry.verse}-{entry.entry_number}",
+        "id": entry_id(slug, book, entry),
         "dibur_hamatchil": entry.dibur_hamatchil,
         # markup.py has already escaped these and emitted only internal tags.
         "paragraphs": [Markup(p) for p in paragraphs(entry.text)],
@@ -89,7 +95,7 @@ def _unit_context(unit: StudyUnit, book: BookInfo, config: Config) -> dict:
         commentary = {
             "slug": info.slug,
             "hebrew": info.hebrew,
-            "entries": [_entry_context(entry) for entry in unit.commentaries],
+            "entries": [_entry_context(entry, info.slug, book) for entry in unit.commentaries],
         }
         if not commentary["entries"]:
             commentary = None

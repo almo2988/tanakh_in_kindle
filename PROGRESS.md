@@ -11,7 +11,7 @@
 | **Current phase** | 1 — POC scaffold |
 | **Status** | **Cause found: two embedded families in one `font-family` stack.** Round 7's diagnostic applies a second font correctly on the device — and the only structural difference from the failing book is that its rule names one embedded family plus a generic, where `.commentary-text` named two. That was the single rule in the whole stylesheet naming two, and the single rule that failed. Fixed and rebuilt. |
 | **Blocked on** | confirmation on the device. |
-| **Last session** | 2026-09-11 |
+| **Last session** | 2026-09-19 |
 | **Next action** | **(human)** sideload the rebuilt `output/Genesis_Chapter_1.epub`. Is the commentary in Rashi script? If yes, D2/D3/D4 can all be settled and the Phase 1 device table finished. |
 
 ---
@@ -155,31 +155,22 @@ bold` with only Regular faces embedded, which on Kindle can fall back for those 
 bold faces are ever added, note that Taamey Frank CLM's Bold variant has its **טעמים made
 transparent** by design — harmless only as long as no vocalised biblical text is ever bold.
 
-**Parked: expandable commentary (D9).** Round 1 of the device test raised a new
-requirement — Rashi should open on a tap rather than sit in the flow, "like the Sefaria
-app", because a verse followed by several screens of commentary breaks the reading of the
-text itself. The human parked it ("we will work on it after"), so nothing was built. What
-the research found, so the next session does not repeat it:
+**Closed: expandable commentary (D9) — ruled out on the device, 2026-09-19.** Round 1 asked
+for Rashi that opens on a tap. The human built and tested both mechanisms on the branch
+`claude/expandable-rashi-details`: `<details>`/`<summary>` (did not collapse on the Paperwhite,
+though correct in Apple Books) and the `noteref` + `<aside epub:type="footnote">` popup. Neither
+works: **on a Kindle a tap anywhere on the page turns the page**, so nothing tap-to-open is
+usable in a reflowable book. Commentary stays inline (SPEC §2, now stated there). The branch
+is abandoned; its one useful fix (entry ids built from the book slug, not the lower-cased
+Sefaria title, so `I Samuel` gave `i-samuel` against `samuel-1`) was re-applied here.
 
-- **`<a epub:type="noteref">` + `<aside epub:type="footnote">` is Amazon's own documented
-  mechanism** and the one commercial Kindle books use. Kindle turns the marker into a tap
-  target and shows the aside as an overlay, so the reader never leaves the page. It needs
-  **bidirectional** links — without a back-link inside the aside the popup may not appear.
-  Readers that do not support it render the aside in place, which is exactly today's
-  layout, so it degrades safely.
-- **`<details>`/`<summary>` is the closest thing to the Sefaria app** (expands in the flow,
-  not as an overlay) and works in Apple Books, Kobo and Thorium, but **its behaviour on KFX
-  could not be established** from Amazon's docs or the community support grids. It has to
-  be tested on the device; the likely outcomes are "renders permanently expanded" or
-  "conversion rejects it".
-- A third option — commentary collected at the end of the chapter with links both ways —
-  works everywhere but requires navigating away from the text, which is what `SPEC.md` §2
-  exists to forbid and what the request is trying to avoid.
-- Whichever wins, **`SPEC.md` §2 needs amending**: it currently mandates that commentary
-  appear immediately after its verse in the flow. A popup satisfies the *intent* (you never
-  leave the page) but not the letter.
-- This must be settled **before Phase 3**, because it changes the markup of all 929 chapter
-  files.
+*Open from that branch:* its `<details>` build also lost the TOC and font controls on the
+device. Never attributed — it may be Send to Kindle (Path B) rather than the markup. Worth
+one control if a Path B round happens.
+
+*If the run of Rashi still breaks the reading,* the remaining levers are all inline: a
+smaller `rashi_scale`, a stronger divider, keeping long entries in one block. Not started;
+wait for the font fix to be confirmed first.
 
 *What the POC actually contains:* בראשית א׳:א׳–י׳, 10 verses, 17 Rashi entries across 9
 verses, and א׳:ג׳ deliberately has no Rashi — that is the "no empty commentary block" case
@@ -303,7 +294,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 | D6 | Sefaria Rashi version | **provisional** — *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934* (Public Domain), Sefaria's primary Hebrew Rashi | 2026-09-11 | `sources.commentaries.Rashi`, `tests/fixtures/rashi_genesis_1.json` |
 | D7 | Sefaria index titles in `books.yaml` verified via API | **partial** — `Genesis` and `Rashi on Genesis` confirmed against the live API during fixture capture; the other 38 are still from SPEC §9 and are verified in Phase 2 | 2026-09-11 | `config/books.yaml` |
 | D8 | EPUB writer: hand-rolled (zipfile + Jinja2) vs `ebooklib` | **hand-rolled** — SPEC §32 admits `ebooklib` only if its output passes EPUBCheck *and* Kindle Previewer unmodified. Every file that matters here (OPF spine with `page-progression-direction`, the NCX kept beside the nav document, exact font media types) is one Kindle quirk away from needing a hand edit, and `zipfile` gives that control in ~100 lines. Passing EPUBCheck with 0 errors/0 warnings. | 2026-09-11 | `epub/builder.py` docstring |
-| D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **open — parked by the human.** Raised by round 1 of the device test; see "Parked" under Phase 1 notes for what the research found. Must be settled before Phase 3. | | `SPEC.md` §2, and the chapter template |
+| D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **inline.** `<details>` and the noteref popup were both built and tested on the Paperwhite; a tap turns the page, so neither can work. | 2026-09-19 | `SPEC.md` §2, PROGRESS Phase 1 notes |
 
 ---
 
@@ -311,6 +302,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-19 | 1 | Reconciled with the abandoned `expandable-rashi-details` branch. D9 closed: `<details>` and popup both fail on the device because a tap turns the page; commentary stays inline, stated in SPEC §2. Re-applied the branch's entry-id fix (book slug, not lower-cased title) with a regression test for `I Samuel`. 163 tests pass, ruff clean. | **(human)** unchanged: confirm Rashi script on the device. Delete the remote branch if wanted. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 (one embedded family per stack)? |
 | 2026-09-11 (8) | 1 | **Cause found.** Round 7's two-paragraph diagnostic applies a second embedded font correctly on the device. Its rule names one embedded family plus a generic; `.commentary-text` named two — the only such rule in the stylesheet, and the only one that failed. `render_css` now emits one embedded family per stack followed by a generic, with two tests holding it there. Contradicts SPEC §16, which §0 settles in the device's favour. Rebuilt: EPUBCheck 0/0, 163 tests pass. | **(human)** confirm on the device that the commentary is now Rashi script; then D2/D3/D4 and the Phase 1 device table can all be closed. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 to "one embedded family per stack, then a generic"? 3. D9, the expandable commentary, is still parked — say when. |
 | 2026-09-11 (7) | 1 | Round 6 produced the fact that reframes the whole hunt: Hebrew rendered in an embedded font while Bookerly was selected and "Publisher Font" was not offered. Bookerly has no Hebrew, so the device was falling back to an embedded font to draw the script at all — font choice for Hebrew looks like its fallback logic, not our CSS, which would explain every earlier result (Rashi appeared exactly when Rashi was the `body` font). Cut the diagnostic down from ten mechanisms to two pages of two paragraphs and one yes/no question each, because the per-line format is what let round 4's flaw hide. EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/Font_Diagnostic.epub`; report per page whether the two paragraphs look the same or different. | Same on both pages means one font for all Hebrew: D3 becomes `rashi_script: false`, SPEC §15's two-font premise needs rewording, and the unused Rashi font should stop being embedded rather than sit there as a second fallback candidate. |
 | 2026-09-11 (6) | 1 | Round 5: all six bisect pages square, the minimal stylesheet included — clearing comments, non-ASCII, `break-*`, borders and sheet size. One difference survives: every build that rendered Rashi set it on `body`; every build that failed sets it on a class. Recorded a correction — round 4's diagnostic put the Rashi font on `<body>`, so its lines could inherit a pass regardless of their class rules, and it did not prove what I reported it proved. Rewrote it: body is now the biblical font, ten mechanisms are tried against it, line 7 separates "class rules dropped" from "font-family overridden", and a second page sets Rashi on `body` to separate "only body works" from "one font per book". EPUBCheck 0/0; 161 tests pass. | **(human)** sideload the rewritten `output/Font_Diagnostic.epub` and report per line: Rashi or square, and big or not for 7 and 8. | 1. Line 7 — big and square, or big and cursive? 2. Page 2 — Rashi or square? 3. Do lines 0 and 9 look different from each other? If the answer is one font per book, D3 becomes `rashi_script: false` and SPEC §15 needs rewording. |

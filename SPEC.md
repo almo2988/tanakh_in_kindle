@@ -54,6 +54,7 @@ Rashi commentary for the preceding verse
 - Commentary appears **immediately after** the verse it belongs to.
 - The EPUB must **not** use a layout where a whole chapter is followed by all of its commentary.
 - The EPUB must **not** require navigating away from the Biblical text to read Rashi.
+- Commentary is **always inline**. Tap-to-open (`<details>`, or `epub:type="noteref"` popups) was tested on the Paperwhite and cannot work: a tap anywhere on the page turns it. Do not revisit without new evidence from the device (PROGRESS.md D9).
 - On Kindle the unit may be split across a page boundary by the renderer; the רש״י divider is what keeps verse and commentary visually attached. This is acceptable and expected.
 
 ---

@@ -7,8 +7,9 @@ from xml.etree import ElementTree
 
 import pytest
 
+from tanakh_epub.models import CommentaryEntry
 from tanakh_epub.rendering.css import render_css
-from tanakh_epub.rendering.html_renderer import ChapterRenderer, hebrew_date
+from tanakh_epub.rendering.html_renderer import ChapterRenderer, entry_id, hebrew_date
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
 
@@ -123,6 +124,22 @@ def test_commentary_entries_keep_source_order(tree) -> None:
         if e.get("id", "").startswith("rashi-genesis-1-1-")
     ]
     assert ids == ["rashi-genesis-1-1-1", "rashi-genesis-1-1-2", "rashi-genesis-1-1-3"]
+
+
+def test_entry_id_uses_the_book_slug_not_the_sefaria_title(books) -> None:
+    entry = CommentaryEntry(
+        commentator="Rashi",
+        book="I Samuel",
+        chapter=1,
+        verse=2,
+        entry_number=3,
+        dibur_hamatchil=None,
+        text="",
+        source_provider="test",
+        source_version="test",
+        source_reference="test",
+    )
+    assert entry_id("rashi", books.by_title("I Samuel"), entry) == "rashi-samuel-1-1-2-3"
 
 
 def test_verse_without_rashi_renders_no_commentary_block(tree) -> None:
