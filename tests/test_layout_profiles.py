@@ -101,16 +101,16 @@ def test_hebrew_labels_are_hebrew_and_distinct(config) -> None:
         assert not re.search(r"[A-Za-z]", label), label
 
 
-def test_a_normal_build_uses_the_control_profile(config) -> None:
-    """Existing builds keep rendering exactly as before until D10 picks a layout."""
-    assert config.layout_profile.name == "current"
+def test_a_normal_build_uses_the_chosen_profile(config) -> None:
+    """D10, decided on the Paperwhite 2026-09-19: C-dense."""
+    assert config.layout_profile.name == "dense"
 
 
-def test_the_control_profile_changes_nothing(config) -> None:
+def test_the_control_profile_changes_nothing(profile_configs) -> None:
     """A is the control group: it must be the base config sections, untouched."""
     base = yaml.safe_load(DEFAULT_CONFIG.read_text(encoding="utf-8"))
     assert base["layout_profiles"]["current"].keys() <= {"label", "hebrew_label", "description"}
-    t = config.typography
+    t = profile_configs["current"].typography
     assert (t.biblical_scale, t.rashi_scale, t.verse_number_scale, t.divider_scale) == (
         base["typography"]["biblical_scale"],
         base["typography"]["rashi_scale"],

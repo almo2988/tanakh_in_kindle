@@ -53,8 +53,8 @@ identifier differ between them, so all three can sit in the Kindle library toget
 ## Getting the book onto the Kindle
 
 The Kindle does not read EPUB directly — it converts to KFX. **Which path you use changes
-what survives**, so the proof of concept is tested through both before one is frozen
-(decision D1 in `PROGRESS.md`).
+what survives**. Send to Kindle (Path B) is the path tested on the Paperwhite and chosen
+(decision D1 in `PROGRESS.md`); Path A is kept as a fallback but has not been tested.
 
 ### First, on the device — this is not optional
 
@@ -64,7 +64,7 @@ Embedded fonts apply *only* under Publisher Font. Without it the Kindle uses its
 Hebrew face, which stacks ניקוד and טעמים badly — which is the entire reason this project
 embeds a font. If א׳:א׳ looks wrong, check this before anything else.
 
-### Path A — Calibre → KFX → USB (the default assumption)
+### Path A — Calibre → KFX → USB (untested fallback)
 
 Most predictable: fonts and RTL survive reliably, but it needs desktop tooling.
 
@@ -78,7 +78,7 @@ Most predictable: fonts and RTL survive reliably, but it needs desktop tooling.
    `documents/` on the Kindle yourself.
 6. Eject, open the book, and select **Publisher Font**.
 
-### Path B — Send to Kindle
+### Path B — Send to Kindle (the chosen path)
 
 No tooling, wireless, but Amazon's server-side converter decides what survives, and it
 sometimes drops embedded fonts.

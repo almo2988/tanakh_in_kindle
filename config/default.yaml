@@ -10,7 +10,7 @@ publisher: "ספריא"
 
 target:
   device: kindle-paperwhite-12     # documentation only; nothing branches on it
-  delivery: calibre-kfx            # PROVISIONAL (D1) — SPEC §3.1 default until both paths are tested
+  delivery: send-to-kindle         # D1 decided 2026-09-19: the path the human used on the device
 
 include:
   tanakh: true
@@ -62,9 +62,9 @@ fonts:
 
 typography:
   biblical_scale: 1.25
-  rashi_scale: 0.9               # PROVISIONAL (D4) — Rashi script needs more size than a
-                                 # square face at the same nominal em; raise again if the
-                                 # Paperwhite says so
+  rashi_scale: 0.9               # Base value. D4 is decided through the layout profile:
+                                 # C-dense sets 0.86, which the human found legible on the
+                                 # Paperwhite (2026-09-19)
   verse_number_scale: 0.75
   divider_scale: 0.85
   rashi_script: true             # D3 decided: commentary is set in real Rashi script.
@@ -104,10 +104,11 @@ layout:
   file_per: chapter
   max_file_kb: 300
   page_break_before_book: true
-  profile: current               # OPEN (D10) — which of layout_profiles a normal build uses
+  profile: dense                 # D10 decided 2026-09-19: C-dense, chosen on the Paperwhite
 
 # Layout experiment — see docs/LAYOUT_EXPERIMENT.md. Three candidates built from identical
 # content by `python -m tanakh_epub experiment-layout`, for the Paperwhite to choose between.
+# D10 (2026-09-19): the human chose C-dense; `layout.profile` above now selects it.
 # Each profile overrides keys of `typography` (sizes and line heights only), `spacing` and
 # `breaks` above; anything it does not name keeps the value above. No profile can change a
 # font or the content. The software does not rank them — the device test does (D10).

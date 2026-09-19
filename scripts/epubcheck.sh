@@ -18,6 +18,15 @@ if [ $# -lt 1 ]; then
   exit 2
 fi
 
+# macOS ships a /usr/bin/java stub that fails when no JDK is installed. Kindle Previewer
+# bundles a working JRE, so fall back to it rather than skipping the check.
+if ! java -version >/dev/null 2>&1; then
+  KP_JRE="/Applications/Kindle Previewer 4.app/Contents/Resources/KFXGen/jre/bin"
+  if [ -x "$KP_JRE/java" ]; then
+    export PATH="$KP_JRE:$PATH"
+  fi
+fi
+
 if command -v epubcheck >/dev/null 2>&1 && [ ! -f "$JAR" ]; then
   exec epubcheck "$@"
 fi

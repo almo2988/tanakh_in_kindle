@@ -56,9 +56,10 @@
 - [x] `pytest` green (150 passed, 1 skipped — the Kindle Previewer test), `ruff check` and `ruff format --check` clean
 
 **Human gate (human)**
-- [ ] Path A: converted with Calibre KFX plugin, sideloaded, checklist below filled
-- [ ] Path B: sent via Send to Kindle, checklist below filled
-- [ ] Decisions D1–D4 recorded
+- [ ] ~~Path A: converted with Calibre KFX plugin, sideloaded, checklist below filled~~ — not tested. The human delivered with Send to Kindle and chose that path (D1), so Path A was dropped rather than tested.
+- [x] Path B: sent via Send to Kindle, checklist below filled (the rows the human reported; see the note under the table)
+- [x] Decisions D1–D4 recorded
+- [x] Gate passed: on 2026-09-19 the human said the layouts are good and told Claude to move to Phase 2
 
 **Device results — Phase 1** (✓ / ✗ / note)
 
@@ -69,17 +70,23 @@ reported.
 
 | Check (`SPEC.md` §3.3) | Path A (Calibre KFX) | Path B (Send to Kindle) |
 |---|---|---|
-| Opens; cover in library | | |
-| Biblical font applied under Publisher Font | | |
-| ניקוד + טעמים stacked correctly (א׳:א׳) | | |
-| Rashi font applied / legible at default size | ✗ round 1 — square, not Rashi script. Fixed (D3); **needs re-test** | |
+| Opens; cover in library | not tested | ✓ opens (no cover yet — Phase 3) |
+| Biblical font applied under Publisher Font | | ✓ 2026-09-19 |
+| ניקוד + טעמים stacked correctly (א׳:א׳) | | ✓ 2026-09-19 |
+| Rashi font applied / legible at default size | ✗ round 1 — square, not Rashi script. Fixed (D3) | ✓ 2026-09-19 — Rashi script under Publisher Font and another font; legible at C-dense's 0.86em |
 | Page turns right-to-left | | |
 | Verse numbers, geresh/gershayim, parentheses correct | | |
 | Font size change scales everything proportionally | | |
 | "Go to" shows book → chapter; links land correctly | | |
 | No empty commentary blocks | | |
 
-**Status:** code complete — awaiting the human gate.
+*Round 9, 2026-09-19 (Send to Kindle):* the human confirmed the font fix (Rashi script under
+Publisher Font and under another font), correct mark stacking, legible Rashi, and chose
+C-dense. The other rows (RTL page turns, numerals, font scaling, "Go to", empty blocks) were
+not reported one by one. They are covered again by the Phase 2 check on full Genesis, which
+is a better test of navigation anyway.
+
+**Status:** done 2026-09-19.
 
 **Notes:**
 
@@ -213,8 +220,10 @@ are in `docs/LAYOUT_EXPERIMENT.md`. How it is built:
 - The biblical line heights were checked against the font's real mark extents, measured
   with HarfBuzz: 1.24em of ink at most, and 1.6 is the lowest line height used.
 - Kindle Previewer 4 converted every variant: Enhanced Typesetting supported, 0 errors, 0
-  quality issues. EPUBCheck was **not** run this session, because there is no Java on this
-  Mac. It must be run before the experiment counts as clean.
+  quality issues. EPUBCheck 5.2.1 (run 2026-09-19 with Kindle Previewer's bundled Java):
+  **0 errors, 0 warnings** on all three.
+- **Decided 2026-09-19: C-dense** (D10). The human called the layouts "great"; the
+  table below records only what was reported.
 - **Not verifiable yet:** chapter and book boundaries. The offline fixtures hold one
   chapter. Repeat the comparison with full Genesis in Phase 2.
 
@@ -222,10 +231,10 @@ are in `docs/LAYOUT_EXPERIMENT.md`. How it is built:
 
 | Check (`docs/LAYOUT_EXPERIMENT.md`) | A-current | B-balanced | C-dense |
 |---|---|---|---|
-| Commentary in Rashi script (font fix) | | | |
-| Biblical text readable (small / default / large) | | | |
-| No ניקוד/טעמים collisions between lines | | | |
-| Rashi readable (also D4) | | | |
+| Commentary in Rashi script (font fix) | ✓ | ✓ | ✓ |
+| Biblical text readable (small / default / large) | | | ✓ |
+| No ניקוד/טעמים collisions between lines | | | ✓ |
+| Rashi readable (also D4) | | | ✓ |
 | Verse → Rashi association obvious | | | |
 | No ugly fragments at page ends | | | |
 | No large blank areas | | | |
@@ -348,16 +357,16 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | ID | Decision | Answer | Date | Recorded in |
 |---|---|---|---|---|
-| D1 | Delivery path (`calibre-kfx` / `send-to-kindle`) | **open (human)** — `calibre-kfx` is configured as SPEC §3.1's default assumption; both paths must be tested before it is frozen | | `config/default.yaml` `target.delivery`, README |
-| D2 | Biblical font (Taamey Frank CLM / Taamey David CLM / Ezra SIL) | **candidate prepared (human decides)** — Taamey Frank CLM Medium 0.110 is embedded and built. It carries the Hancock/Hudson Biblical Hebrew OpenType layout logic, which is what positions ניקוד and טעמים. Whether it stacks correctly **on the Paperwhite** is the open question. | | `fonts.biblical`, `fonts/README.md`, `sources.xhtml` |
+| D1 | Delivery path (`calibre-kfx` / `send-to-kindle`) | **send-to-kindle** — the path the human used for the device tests. Calibre KFX was not tested. | 2026-09-19 | `config/default.yaml` `target.delivery`, README |
+| D2 | Biblical font (Taamey Frank CLM / Taamey David CLM / Ezra SIL) | **Taamey Frank CLM Medium 0.110** — ניקוד and טעמים stack correctly on the Paperwhite (human, 2026-09-19). | 2026-09-19 | `fonts.biblical`, `fonts/README.md`, `sources.xhtml` |
 | D3 | Rashi-script font + verified license, or `rashi_script: false` | **decided — Noto Rashi Hebrew Regular 1.007**, SIL OFL 1.1, `fsType 0`, static TTF. Genuine Rashi script. Covers every character in the Rashi fixture (asserted by `tests/test_fonts.py`). Round 1 on the device rejected the square placeholder, which is now removed from the repo. `rashi_script: true`. | 2026-09-11 | `fonts.rashi`, `typography.rashi_script`, `fonts/README.md` |
-| D4 | `rashi_scale` after legibility check | 0.9 — raised from 0.85 with the font swap, since Rashi script reads lighter than a square face at the same em. **Still unverified on the device.** | 2026-09-11 | `typography.rashi_scale` |
+| D4 | `rashi_scale` after legibility check | **0.86**, set by the C-dense profile (the base value stays 0.9). The human found it legible on the Paperwhite. | 2026-09-19 | `layout_profiles.dense.typography.rashi_scale` |
 | D5 | Sefaria Tanakh version (must include טעמים) | **provisional** — *Miqra according to the Masorah* (CC BY-SA), which the fixtures were captured from. Phase 2 compares it against *Tanach with Ta'amei Hamikra* (Public Domain) in `docs/VERSION_SELECTION.md`. | 2026-09-11 | `sources.tanakh`, `tests/fixtures/genesis_1.json` |
 | D6 | Sefaria Rashi version | **provisional** — *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934* (Public Domain), Sefaria's primary Hebrew Rashi | 2026-09-11 | `sources.commentaries.Rashi`, `tests/fixtures/rashi_genesis_1.json` |
 | D7 | Sefaria index titles in `books.yaml` verified via API | **partial** — `Genesis` and `Rashi on Genesis` confirmed against the live API during fixture capture; the other 38 are still from SPEC §9 and are verified in Phase 2 | 2026-09-11 | `config/books.yaml` |
 | D8 | EPUB writer: hand-rolled (zipfile + Jinja2) vs `ebooklib` | **hand-rolled** — SPEC §32 admits `ebooklib` only if its output passes EPUBCheck *and* Kindle Previewer unmodified. Every file that matters here (OPF spine with `page-progression-direction`, the NCX kept beside the nav document, exact font media types) is one Kindle quirk away from needing a hand edit, and `zipfile` gives that control in ~100 lines. Passing EPUBCheck with 0 errors/0 warnings. | 2026-09-11 | `epub/builder.py` docstring |
 | D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **inline.** `<details>` and the noteref popup were both built and tested on the Paperwhite; a tap turns the page, so neither can work. | 2026-09-19 | `SPEC.md` §2, PROGRESS Phase 1 notes |
-| D10 | Layout profile: A-current / B-balanced / C-dense | **open (human)** — three candidates built from identical content; the Paperwhite decides. `layout.profile: current` (the control) until then. D-dense-break-aware was rejected by the human (2026-09-19) and removed. | | `layout.profile`, `layout_profiles`, `docs/LAYOUT_EXPERIMENT.md` |
+| D10 | Layout profile: A-current / B-balanced / C-dense | **C-dense**, chosen on the Paperwhite. D-dense-break-aware was rejected and removed earlier the same day. | 2026-09-19 | `layout.profile`, `layout_profiles`, `docs/LAYOUT_EXPERIMENT.md` |
 
 ---
 
