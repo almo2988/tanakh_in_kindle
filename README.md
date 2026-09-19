@@ -157,8 +157,10 @@ as done.
 Taamey Frank CLM (GPL-2.0 with the Culmus font-embedding exception) and Noto Rashi Hebrew
 (SIL OFL 1.1). See `fonts/README.md`.
 
-**The texts** are not in this repository. `fetch` downloads them from Sefaria, and the built
-book names each version and its license on its last page (מקורות):
+**The texts** are not in this repository, apart from בראשית פרק א׳ and its Rashi in
+`tests/fixtures/` (MAM, CC BY-SA, and Rosenbaum & Silbermann, Public Domain; each file names
+its source). `fetch` downloads the rest from Sefaria, and the built book names each version
+and its license on its last page (מקורות):
 
 | | Version | License | Books |
 |---|---|---|---|
