@@ -21,7 +21,7 @@ from pathlib import Path
 from ..books import BookTable
 from ..config import Config
 from ..models import Chapter
-from ..rendering.css import epub_font_href, font_media_type, render_css
+from ..rendering.css import CommentaryParts, epub_font_href, font_media_type, render_css
 from ..rendering.html_renderer import ChapterRenderer, RenderedChapter, build_environment
 from .metadata import build_metadata
 from .navigation import build_navigation, render_nav, render_ncx
@@ -52,6 +52,9 @@ class BuildResult:
     identifier: str
     oversized: list[RenderedChapter] = field(default_factory=list)
     """Chapter files over ``layout.max_file_kb`` — Amazon's ~300 KB guideline (SPEC §11)."""
+    rashi_font_protected: bool = True
+    """False if Kindle's converter may still make the Rashi font the book's default font
+    (see `CommentaryParts`); only a build of a few verses can hit it."""
 
     @property
     def total_bytes(self) -> int:
@@ -78,9 +81,10 @@ class EpubBuilder:
             raise ValueError("Nothing to build: no chapters were selected")
 
         build_date = build_date or datetime.now(UTC)
-        rendered = self.renderer.render_all(chapters)
+        parts = CommentaryParts.plan(chapters, self.config)
+        rendered = self.renderer.render_all(chapters, parts)
         sources_xhtml = self.renderer.render_sources(build_date=build_date)
-        css = render_css(self.config)
+        css = render_css(self.config, commentary_parts=parts.count)
 
         navigation = build_navigation(
             self.config, self.books, rendered, sources_filename=SOURCES_FILENAME
@@ -141,6 +145,7 @@ class EpubBuilder:
             chapters=rendered,
             identifier=metadata.identifier,
             oversized=[c for c in rendered if c.size_bytes > limit],
+            rashi_font_protected=parts.protects_rashi_font,
         )
 
     # ---- manifest --------------------------------------------------------

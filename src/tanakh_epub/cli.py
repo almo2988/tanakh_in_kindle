@@ -162,6 +162,14 @@ def cmd_build(args) -> int:
     for name, version in sorted(commentary_versions.items()):
         print(f"  commentary version {name}: {version}")
 
+    if not result.rashi_font_protected:
+        print(
+            "\nWarning: one Rashi paragraph is longer than all the verses in this build, so "
+            "Kindle may show the commentary in the reader's font, not Rashi script. "
+            "Build a whole chapter or more.",
+            file=sys.stderr,
+        )
+
     if result.oversized:
         limit = config.layout.max_file_kb
         print(f"\nChapter files over {limit} KB (SPEC §11):", file=sys.stderr)
