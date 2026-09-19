@@ -24,8 +24,8 @@ connection for the one-time download.
 git clone https://github.com/almo2988/tanakh_in_kindle.git
 cd tanakh_in_kindle
 uv sync
-uv run python -m tanakh_epub fetch     # download the text once, ~5 minutes
-uv run python -m tanakh_epub build     # → output/Tanakh_with_Rashi.epub, ~1 minute
+uv run python -m tanakh_epub fetch     # download the text once, a few minutes
+uv run python -m tanakh_epub build     # → output/Tanakh_with_Rashi.epub, a few seconds
 ```
 
 `fetch` downloads all 39 books and their Rashi from Sefaria into `data/cache/` (about 230
@@ -91,8 +91,8 @@ uv run python -m tanakh_epub check output/Tanakh_with_Rashi.epub
   passed.
 - **`build`** also writes `Tanakh_with_Rashi.build_manifest.json` (exactly what went into
   the book) and `Tanakh_with_Rashi.SOURCES_AND_LICENSES.md` next to the EPUB.
-- **Offline demo:** `build --chapter Genesis 1 --max-verse 10` builds בראשית א׳:א׳–י׳ from
-  the test data in the repo, with no download.
+- **Offline demo:** `build --chapter Genesis 1` builds בראשית פרק א׳ from the test data in
+  the repo, with no download.
 
 Settings live in `config/default.yaml`: text versions, fonts, sizes and spacing, and the
 layout profile. `experiment-layout` builds the same chapter once per layout profile for

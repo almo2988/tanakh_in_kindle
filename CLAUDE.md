@@ -34,7 +34,7 @@ python -m tanakh_epub fetch                                   # all 39 books + R
 python -m tanakh_epub inventory-markup                        # must report 0 unknown patterns
 python -m tanakh_epub validate
 python -m tanakh_epub build                                   # → output/Tanakh_with_Rashi.epub
-python -m tanakh_epub build --chapter Genesis 1 --max-verse 10   # offline, from the test fixture
+python -m tanakh_epub build --chapter Genesis 1              # offline, from the test fixture
 python -m tanakh_epub check output/Tanakh_with_Rashi.epub     # EPUBCheck (+ Kindle Previewer if installed)
 python -m tanakh_epub experiment-layout --chapter Genesis 1   # one EPUB per layout profile (docs/LAYOUT_EXPERIMENT.md)
 pytest                                     # network tests skipped unless RUN_NETWORK_TESTS=1
