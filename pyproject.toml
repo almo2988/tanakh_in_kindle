@@ -54,6 +54,3 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # Hebrew string literals are the point of this project, not ambiguous-character mistakes.
 "*" = ["RUF001", "RUF002", "RUF003"]
-# Diagnostic markup reads better as whole lines than wrapped mid-attribute.
-"scripts/font_diagnostic.py" = ["E501"]
-"scripts/css_bisect.py" = ["E501"]

@@ -15,12 +15,12 @@ is what positions ניקוד and טעמים without collisions.
 
 `Noto Rashi Hebrew` is genuine Rashi script — a semi-cursive skeleton based on 15th-century
 Sephardic writing — and replaced the square placeholder that the first Paperwhite test
-rejected. It covers every character present in the Rashi fixture, which `tests/test_fonts.py`
-asserts on every run: a font that is missing a glyph does not fail the build, it renders a
-blank box, and only on the device.
-
-Rashi commentary is unvocalized, so the commentary font is not required to stack ניקוד;
-the biblical font is, and is tested for it.
+rejected. A font that is missing a glyph does not fail the build; it renders a blank box,
+and only on the device. So `tests/test_fonts.py` checks both fonts against the fixtures on
+every run, and `python -m tanakh_epub validate` checks them against every character of
+every fetched book. Across the whole Tanakh, Noto Rashi Hebrew covers everything the
+commentary uses, including its ניקוד (the chosen Rashi editions are vocalized, D6).
+Taamey Frank CLM lacks only `…`, `–` and `—`, which the Kindle draws from a fallback font.
 
 `typography.rashi_script: false` remains the escape hatch if Rashi script proves hard to
 read on the 7″ screen — the commentary then falls back to the biblical font. The Rashi

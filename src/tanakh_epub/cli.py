@@ -23,7 +23,7 @@ from .epub.metadata import identifier_salt, new_identifier_salt
 from .layout_experiment import build_variants, content_differences, format_report
 from .paths import CACHE_DIR, PROJECT_ROOT
 from .processing.inventory import Inventory, format_inventory, scan
-from .processing.study_units import ChapterSelection, load_chapters, stats
+from .processing.study_units import ChapterSelection, ContentError, load_chapters, stats
 from .processing.validation import format_report as format_validation
 from .processing.validation import validate
 from .providers.base import ProviderError
@@ -65,7 +65,7 @@ def _parser() -> argparse.ArgumentParser:
         help="build the same content once per layout profile, for the device test",
         description="Build one EPUB per layout profile from identical content — "
         "output/layout_<label>.epub — and print the parameters and sizes of each. "
-        "With no selection, builds every book that has local data.",
+        "With no selection, builds the whole Tanakh (run `fetch` first).",
     )
     _add_selection_arguments(experiment)
     experiment.add_argument(
@@ -192,21 +192,42 @@ def _titles(args, books: BookTable) -> list[str]:
 
 
 def _load_content(args, config: Config, books: BookTable):
-    """The requested chapters as the internal model, or ``None`` if there is no local
-    data for any of them."""
+    """The requested chapters as the internal model, or ``None`` — with the reason on
+    stderr — if any of them is not available locally.
+
+    Never a partial book: a whole-book build of a book that was not fetched fails, even
+    when the test fixture could supply its first chapter (SPEC_DATA_SOURCE.md §17). A
+    single-chapter build may use the fixture, which is what keeps the POC build offline.
+    """
     provider = LocalProvider(books=books, expected_versions=_expected_versions(config, books))
 
     selections, default_name = _selections(args, config, books)
     available = set(provider.get_books())
-    selections = [s for s in selections if s.book.sefaria_title in available]
-    if not selections:
+    missing = [
+        s.book.sefaria_title
+        for s in selections
+        if s.book.sefaria_title not in available
+        or (s.chapters is None and provider.is_partial(s.book.sefaria_title))
+    ]
+    if missing:
+        whole = len(missing) == len(books)
+        named = "any book" if whole else ", ".join(missing)
+        command = "python -m tanakh_epub fetch" + (
+            ""
+            if whole
+            else "".join(f' --books "{t}"' if i == 0 else f' "{t}"' for i, t in enumerate(missing))
+        )
         print(
-            "No local data for the requested books. Run `python -m tanakh_epub fetch --book "
-            "<title>` first.",
+            f"Not downloaded yet: {named}.\n"
+            f"Run `{command}` first (once; it caches the text in data/cache/).",
             file=sys.stderr,
         )
         return None
-    return (*load_chapters(provider, config, selections), default_name)
+    try:
+        return (*load_chapters(provider, config, selections), default_name)
+    except (ContentError, ProviderError) as exc:
+        print(exc, file=sys.stderr)
+        return None
 
 
 def _shown(path: Path) -> Path:

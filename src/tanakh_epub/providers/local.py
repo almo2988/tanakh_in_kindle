@@ -36,6 +36,8 @@ class _Dataset:
     chapters_included: tuple[int, ...]
     index_lengths: tuple[int, ...] | None
     """Sefaria's own counts for the index, recorded at fetch time; absent in fixtures."""
+    partial: bool
+    """True for a dataset holding only some chapters — a test fixture, never a fetched book."""
 
     def chapter(self, number: int) -> list:
         if number not in self.chapters_included:
@@ -97,6 +99,7 @@ def _load(path: Path) -> _Dataset:
         ),
         chapters_included=tuple(int(c) for c in included),
         index_lengths=tuple(raw["index_lengths"]) if raw.get("index_lengths") else None,
+        partial=raw.get("chapters_included") is not None,
     )
 
 
@@ -187,6 +190,10 @@ class LocalProvider:
 
     def dataset_path(self, book: str, commentator: str | None = None) -> Path:
         return self._dataset(book, commentator).path
+
+    def is_partial(self, book: str) -> bool:
+        """Whether only some chapters of ``book`` are available (the fixture, not a fetch)."""
+        return self._dataset(book, None).partial
 
     def available_chapters(self, book: str) -> tuple[int, ...]:
         return self._dataset(book, None).chapters_included

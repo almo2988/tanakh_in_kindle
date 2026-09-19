@@ -28,6 +28,15 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip)
 
 
+@pytest.fixture(autouse=True)
+def empty_cache(tmp_path_factory, monkeypatch):
+    """Every test sees an empty data/cache/, so the suite behaves the same on a fresh
+    clone as on a machine that has fetched the whole Tanakh."""
+    import tanakh_epub.providers.local as local
+
+    monkeypatch.setattr(local, "CACHE_DIR", tmp_path_factory.mktemp("empty-cache"))
+
+
 POC_MAX_VERSE = 10
 """The POC is בראשית א׳:א׳–י׳ (SPEC.md §34)."""
 

@@ -68,3 +68,39 @@ def test_phase_two_commands_exist(command: str, capsys) -> None:
 def test_unknown_book_fails_loudly() -> None:
     with pytest.raises(KeyError):
         main(["build", "--chapter", "Bereshit", "1"])
+
+
+# ---- Never a partial book (SPEC_DATA_SOURCE.md §17) ------------------------------------
+
+
+def test_a_full_build_without_a_download_fails_and_says_what_to_run(tmp_path, capsys) -> None:
+    """With nothing fetched, the fixture could still supply Genesis 1 — which is exactly the
+    one-chapter "Tanakh" this must never produce."""
+    output = tmp_path / "Tanakh_with_Rashi.epub"
+    assert main(["build", "--output", str(output)]) == 1
+    assert not output.exists()
+    err = capsys.readouterr().err
+    assert "Not downloaded yet: any book" in err
+    assert "`python -m tanakh_epub fetch`" in err
+
+
+def test_a_whole_book_build_does_not_fall_back_to_the_fixture(tmp_path, capsys) -> None:
+    assert main(["build", "--book", "Genesis", "--output", str(tmp_path / "g.epub")]) == 1
+    assert 'fetch --books "Genesis"' in capsys.readouterr().err
+
+
+def test_the_missing_books_are_named(tmp_path, capsys) -> None:
+    args = ["build", "--books", "Genesis", "I Samuel", "--output", str(tmp_path / "x.epub")]
+    assert main(args) == 1
+    assert 'fetch --books "Genesis" "I Samuel"' in capsys.readouterr().err
+
+
+def test_a_single_chapter_may_still_use_the_fixture(tmp_path) -> None:
+    output = tmp_path / "Genesis_Chapter_1.epub"
+    assert main(["build", "--chapter", "Genesis", "1", "--output", str(output)]) == 0
+    assert output.is_file()
+
+
+def test_a_chapter_the_fixture_lacks_fails_cleanly(tmp_path, capsys) -> None:
+    assert main(["build", "--chapter", "Genesis", "2", "--output", str(tmp_path / "g.epub")]) == 1
+    assert "no chapter 2" in capsys.readouterr().err

@@ -1,7 +1,7 @@
 """SPEC.md §3.2, §33 — the external validators.
 
 Both are skipped with a clear message when the tool is absent. A skipped check is never
-reported as a pass; the exit criteria in PROGRESS.md distinguish the two.
+reported as a pass; a release check has to tell the two apart.
 """
 
 from __future__ import annotations

@@ -1,8 +1,6 @@
 # Build configuration — SPEC.md §30.
 #
-# Values marked "PROVISIONAL (Dn)" are waiting on a decision in PROGRESS.md → Decisions.
-# They are real, working values, not placeholders that break the build; they are simply
-# not frozen until the human has tested on the Paperwhite.
+# "Dn" refers to a decision in docs/DECISIONS.md.
 
 title: "תנ״ך עם פירוש רש״י"
 creator: "ספריא"
