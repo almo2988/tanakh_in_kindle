@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,8 +13,29 @@ sys.path.insert(0, str(ROOT / "src"))
 from tanakh_epub.books import default_books  # noqa: E402
 from tanakh_epub.config import load_config  # noqa: E402
 from tanakh_epub.epub.builder import EpubBuilder  # noqa: E402
+from tanakh_epub.paths import FIXTURES_DIR  # noqa: E402
 from tanakh_epub.processing.study_units import ChapterSelection, load_chapters  # noqa: E402
 from tanakh_epub.providers.local import LocalProvider  # noqa: E402
+
+
+def pytest_collection_modifyitems(config, items):
+    """Network tests hit Sefaria; they run only when asked (SPEC_DATA_SOURCE.md §19)."""
+    if os.environ.get("RUN_NETWORK_TESTS") == "1":
+        return
+    skip = pytest.mark.skip(reason="hits the Sefaria API; set RUN_NETWORK_TESTS=1 to run")
+    for item in items:
+        if "network" in item.keywords:
+            item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def empty_cache(tmp_path_factory, monkeypatch):
+    """Every test sees an empty data/cache/, so the suite behaves the same on a fresh
+    clone as on a machine that has fetched the whole Tanakh."""
+    import tanakh_epub.providers.local as local
+
+    monkeypatch.setattr(local, "CACHE_DIR", tmp_path_factory.mktemp("empty-cache"))
+
 
 POC_MAX_VERSE = 10
 """The POC is בראשית א׳:א׳–י׳ (SPEC.md §34)."""
@@ -31,7 +53,8 @@ def books():
 
 @pytest.fixture(scope="session")
 def provider(books):
-    return LocalProvider(books=books)
+    # Fixtures only: the suite must not change behaviour once data/cache/ is filled.
+    return LocalProvider([FIXTURES_DIR], books=books)
 
 
 @pytest.fixture(scope="session")

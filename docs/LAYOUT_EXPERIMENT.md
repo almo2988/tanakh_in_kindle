@@ -1,8 +1,8 @@
 # Layout experiment — three candidates for the Paperwhite
 
-**Decision D10 (open, human):** which layout the book uses. This document says what the
-three candidates are, why there are several, and how to judge them on the device. It does not
-say which one is best — nothing in the code does either. The Paperwhite decides.
+**Decision D10: C-dense**, chosen on the Paperwhite (2026-09-19) and used by every build.
+This document records the three candidates, why there were several, and how they were
+judged — the method to reuse if the layout is ever revisited.
 
 ## Why an experiment, not a choice
 
@@ -153,7 +153,7 @@ settings on the device, not something in the EPUB. Use the same sizes for all th
 9. What changes when the font size changes. Everything should scale together.
 10. Transitions at the chapter start (and, once the data exists, between chapters and books).
 
-Record the results in `PROGRESS.md` under "Layout experiment". Then decide D10, set
+Record the results, then decide D10 (`docs/DECISIONS.md`), set
 `layout.profile`.
 
 ## What cannot be verified automatically

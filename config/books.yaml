@@ -4,9 +4,9 @@
 # hard-code a book name, and no slug is ever derived by lower-casing the Sefaria
 # title ("I Samuel" and "Song of Songs" would both break).
 #
-# sefaria_title  internal English index title, exactly as Sefaria spells it (D7 verifies
-#                these against the API in Phase 2 — the table is the contract, the API is
-#                the source of truth for spelling)
+# sefaria_title  internal English index title, exactly as Sefaria spells it (D7: all 39
+#                verified against the Sefaria-Export index on 2026-09-19 — the table is the
+#                contract, Sefaria is the source of truth for spelling)
 # hebrew_title   the only form that ever reaches the reader
 # slug           URL/ID-safe; used for file names (`{slug}-{chapter:03d}.xhtml`) and
 #                verse anchors (`{slug}-{chapter}-{verse}`)

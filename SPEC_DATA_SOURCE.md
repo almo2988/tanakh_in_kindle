@@ -29,6 +29,7 @@ Rules:
 - The provider fetches **one whole book per request** (`Genesis`, `Rashi on Genesis`). Sefaria returns a book as nested JSON `[chapter][verse]` (text) or `[chapter][verse][entry]` (commentary).
 - Per-verse access is an in-memory lookup over the cached book.
 - For the **bulk build** of the full Tanakh, prefer the Sefaria-Export repository (one raw JSON file per book/version) over the API. Do not clone the whole repository (it is several GB); download the specific raw files needed, or use a sparse checkout.
+  *(2026-09-19: the export's text files have moved from the GitHub repository to a public Google Cloud Storage bucket, `https://storage.googleapis.com/sefaria-export/json/…`; the repository now holds only the index `books.json` and scripts. See `docs/VERSION_SELECTION.md`.)*
 - The API is used for version discovery, for refreshing single books, and as a fallback if a file is absent from the export.
 - API requests are polite: a descriptive `User-Agent`, a small delay between requests, and exponential backoff on 429/5xx.
 

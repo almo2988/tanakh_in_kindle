@@ -8,15 +8,17 @@ license = { text = "MIT" }
 dependencies = [
     "jinja2>=3.1",
     "pyyaml>=6.0",
+    # Reads the embedded fonts' cmap, so `validate` can prove each font covers every
+    # character it will draw — a missing glyph otherwise shows up only on the device.
+    "fonttools>=4.50",
+    # Draws the generated cover (SPEC §29).
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
-    # Reads the embedded fonts' cmap and licensing tables, so tests/test_fonts.py can
-    # prove a font covers the text before it ships. Not needed to build.
-    "fonttools>=4.50",
 ]
 
 [project.scripts]
@@ -52,6 +54,3 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # Hebrew string literals are the point of this project, not ambiguous-character mistakes.
 "*" = ["RUF001", "RUF002", "RUF003"]
-# Diagnostic markup reads better as whole lines than wrapped mid-attribute.
-"scripts/font_diagnostic.py" = ["E501"]
-"scripts/css_bisect.py" = ["E501"]

@@ -32,19 +32,36 @@ class ToolResult:
         return not self.available
 
 
+# Kindle Previewer bundles a JRE. On a Mac without a JDK, /usr/bin/java is a stub that only
+# prints "Unable to locate a Java Runtime", so a working Java is found by running it.
+BUNDLED_JAVA = "/Applications/Kindle Previewer 4.app/Contents/Resources/KFXGen/jre/bin/java"
+
+
+def find_java() -> str | None:
+    """A ``java`` that actually runs: the one on PATH, else Kindle Previewer's bundled JRE."""
+    for candidate in (shutil.which("java"), BUNDLED_JAVA):
+        if candidate and Path(candidate).exists():
+            probe = subprocess.run([candidate, "-version"], capture_output=True)
+            if probe.returncode == 0:
+                return candidate
+    return None
+
+
 def find_epubcheck() -> list[str] | None:
     """``epubcheck`` on PATH, ``$EPUBCHECK_JAR``, or a jar under ``tools/``."""
     explicit = os.environ.get(EPUBCHECK_ENV)
     if explicit and Path(explicit).is_file():
-        return ["java", "-jar", explicit]
+        java = find_java()
+        return [java, "-jar", explicit] if java else None
 
     on_path = shutil.which("epubcheck")
     if on_path:
         return [on_path]
 
     jars = sorted((PROJECT_ROOT / "tools").glob("epubcheck*/epubcheck.jar"))
-    if jars and shutil.which("java"):
-        return ["java", "-jar", str(jars[-1])]
+    java = find_java()
+    if jars and java:
+        return [java, "-jar", str(jars[-1])]
     return None
 
 

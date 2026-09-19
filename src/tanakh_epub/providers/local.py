@@ -34,6 +34,10 @@ class _Dataset:
     text: list
     source: SourceInfo
     chapters_included: tuple[int, ...]
+    index_lengths: tuple[int, ...] | None
+    """Sefaria's own counts for the index, recorded at fetch time; absent in fixtures."""
+    partial: bool
+    """True for a dataset holding only some chapters — a test fixture, never a fetched book."""
 
     def chapter(self, number: int) -> list:
         if number not in self.chapters_included:
@@ -94,14 +98,16 @@ def _load(path: Path) -> _Dataset:
             checked=raw.get("fetched_at"),
         ),
         chapters_included=tuple(int(c) for c in included),
+        index_lengths=tuple(raw["index_lengths"]) if raw.get("index_lengths") else None,
+        partial=raw.get("chapters_included") is not None,
     )
 
 
 class LocalProvider:
     """Serves whole books out of one directory of JSON files.
 
-    ``roots`` are searched in order, so a real cache entry shadows a fixture once Phase 2
-    has fetched the book for real.
+    ``roots`` are searched in order. The default puts the cache first, so a book fetched
+    from Sefaria shadows its one-chapter fixture; the test suite passes the fixtures alone.
     """
 
     def __init__(
@@ -111,7 +117,7 @@ class LocalProvider:
         books: BookTable | None = None,
         expected_versions: dict[str, str] | None = None,
     ) -> None:
-        self.roots = roots or [FIXTURES_DIR, CACHE_DIR]
+        self.roots = roots or [CACHE_DIR, FIXTURES_DIR]
         self.books = books or default_books()
         self.expected_versions = expected_versions or {}
         self._cache: dict[Path, _Dataset] = {}
@@ -143,12 +149,13 @@ class LocalProvider:
         looked_in = "\n  ".join(str(p) for p in self._candidates(book, commentator))
         raise ProviderError(f"No local data for {label}. Looked in:\n  {looked_in}")
 
-    def _checked(self, dataset: _Dataset, key: str) -> _Dataset:
+    def _checked(self, dataset: _Dataset, key: str, book: str) -> _Dataset:
         """A dataset whose version differs from config is a miss, never a silent mix.
 
-        SPEC_DATA_SOURCE.md §11.
+        SPEC_DATA_SOURCE.md §11. ``expected_versions`` may name a version per book as
+        ``"Rashi:Isaiah"``; that wins over the commentator-wide ``"Rashi"``.
         """
-        expected = self.expected_versions.get(key)
+        expected = self.expected_versions.get(f"{key}:{book}") or self.expected_versions.get(key)
         if expected and dataset.source.version_title != expected:
             raise ProviderError(
                 f'{dataset.path.name} holds version "{dataset.source.version_title}" '
@@ -170,7 +177,7 @@ class LocalProvider:
         return found
 
     def get_book_text(self, book: str) -> list[list[str]]:
-        dataset = self._checked(self._dataset(book, None), "tanakh")
+        dataset = self._checked(self._dataset(book, None), "tanakh", book)
         if dataset.depth != 2:
             raise ProviderError(f"{dataset.path.name} has depth {dataset.depth}, expected 2")
         return dataset.padded()
@@ -178,11 +185,21 @@ class LocalProvider:
     def text_source(self, book: str) -> SourceInfo:
         return self._dataset(book, None).source
 
+    def index_lengths(self, book: str, commentator: str | None = None) -> tuple[int, ...] | None:
+        return self._dataset(book, commentator).index_lengths
+
+    def dataset_path(self, book: str, commentator: str | None = None) -> Path:
+        return self._dataset(book, commentator).path
+
+    def is_partial(self, book: str) -> bool:
+        """Whether only some chapters of ``book`` are available (the fixture, not a fetch)."""
+        return self._dataset(book, None).partial
+
     def available_chapters(self, book: str) -> tuple[int, ...]:
         return self._dataset(book, None).chapters_included
 
     def get_chapter_text(self, book: str, chapter: int) -> list[str]:
-        return self._checked(self._dataset(book, None), "tanakh").chapter(chapter)
+        return self._checked(self._dataset(book, None), "tanakh", book).chapter(chapter)
 
     # ---- CommentaryProvider ---------------------------------------------
 
@@ -194,7 +211,7 @@ class LocalProvider:
         return True
 
     def get_book_commentary(self, commentator: str, book: str) -> list[list[list[str]]]:
-        dataset = self._checked(self._dataset(book, commentator), commentator)
+        dataset = self._checked(self._dataset(book, commentator), commentator, book)
         if dataset.depth != 3:
             raise ProviderError(f"{dataset.path.name} has depth {dataset.depth}, expected 3")
         return dataset.padded()
@@ -203,4 +220,4 @@ class LocalProvider:
         return self._dataset(book, commentator).source
 
     def get_chapter_commentary(self, commentator: str, book: str, chapter: int) -> list[list[str]]:
-        return self._checked(self._dataset(book, commentator), commentator).chapter(chapter)
+        return self._checked(self._dataset(book, commentator), commentator, book).chapter(chapter)

@@ -22,11 +22,15 @@
   <link rel="stylesheet" type="text/css" href="../styles/main.css"/>
 </head>
 <body dir="rtl">
+{%- if continuation %}
+  <section epub:type="chapter">
+{%- else %}
   <section id="{{ chapter_anchor }}" epub:type="chapter"{% if book_start %} class="book-start"{% endif %}>
 {%- if book_start %}
     <h1 class="book-heading">{{ book_hebrew_title }}</h1>
 {%- endif %}
     <h2 class="chapter-heading">{{ chapter_label }}</h2>
+{%- endif %}
 {%- for unit in units %}
     <section class="study-unit">
       <div class="keep-together">

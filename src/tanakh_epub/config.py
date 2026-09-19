@@ -139,6 +139,11 @@ class Config:
     commentaries: tuple[str, ...]
     tanakh_source: SourceInfo
     commentary_sources: dict[str, SourceInfo]
+    """The commentator's first configured version — the one for Genesis. Per-book versions
+    are in ``commentary_book_sources``; use ``commentary_source(name, book)``."""
+
+    commentary_book_sources: dict[str, dict[str, SourceInfo]]
+    """``{commentator: {book: source}}`` for commentaries configured with ``versions``."""
     biblical_font: FontInfo
     rashi_font: FontInfo
     typography: Typography
@@ -164,6 +169,33 @@ class Config:
                 f'"{name}" is not in config/commentators.yaml. '
                 f"Commentator labels and slugs are never hard-coded."
             ) from None
+
+    def commentary_source(self, name: str, book: str) -> SourceInfo:
+        """The version of ``name`` configured for ``book`` (D6: one per group of books)."""
+        by_book = self.commentary_book_sources.get(name) or {}
+        if not by_book:
+            return self.commentary_sources[name]
+        try:
+            return by_book[book]
+        except KeyError:
+            raise KeyError(
+                f"sources.commentaries.{name}.versions names no version for {book}"
+            ) from None
+
+    def commentary_versions_for(
+        self, name: str, books: list[str] | None = None
+    ) -> list[SourceInfo]:
+        """The distinct versions of ``name`` used by ``books`` (default: every configured
+        book), in the order they are configured."""
+        by_book = self.commentary_book_sources.get(name) or {}
+        if not by_book:
+            return [self.commentary_sources[name]]
+        wanted = by_book.keys() if books is None else [b for b in books if b in by_book]
+        out: list[SourceInfo] = []
+        for source in by_book.values():
+            if source not in out and any(by_book[b] == source for b in wanted):
+                out.append(source)
+        return out
 
     @property
     def config_hash(self) -> str:
@@ -218,6 +250,29 @@ def _source(entry: dict[str, Any], label: str, config_path: Path) -> SourceInfo:
         source_url=entry.get("source_url"),
         checked=str(entry["checked"]) if entry.get("checked") else None,
     )
+
+
+def _versions_by_book(
+    entry: dict[str, Any], label: str, config_path: Path
+) -> dict[str, SourceInfo]:
+    """``versions:`` — a list of versions, each naming the books it covers. Shared keys
+    (``provider``, ``language``, ``checked``) sit on the commentator and may be overridden
+    per version. A book named twice is an error: which version it gets must be obvious."""
+    shared = {k: v for k, v in entry.items() if k != "versions"}
+    by_book: dict[str, SourceInfo] = {}
+    for index, version in enumerate(entry.get("versions") or []):
+        item_label = f"{label}.versions[{index}]"
+        books = version.get("books") or []
+        if not books:
+            raise ValueError(f"{config_path}: {item_label} lists no books")
+        source = _source({**shared, **version}, item_label, config_path)
+        for book in books:
+            if book in by_book:
+                raise ValueError(f"{config_path}: {book} is in more than one {label}.versions")
+            by_book[book] = source
+    if not by_book:
+        raise ValueError(f"{config_path}: {label}.versions is empty")
+    return by_book
 
 
 def load_commentators(path: Path | None = None) -> dict[str, CommentatorInfo]:
@@ -376,10 +431,16 @@ def load_config(path: Path | None = None, *, profile: str | None = None) -> Conf
             )
 
     sources = raw.get("sources") or {}
-    commentary_sources = {
-        name: _source(entry, f"sources.commentaries.{name}", path)
-        for name, entry in (sources.get("commentaries") or {}).items()
-    }
+    commentary_sources: dict[str, SourceInfo] = {}
+    commentary_book_sources: dict[str, dict[str, SourceInfo]] = {}
+    for name, entry in (sources.get("commentaries") or {}).items():
+        label = f"sources.commentaries.{name}"
+        if "versions" in entry:
+            by_book = _versions_by_book(entry, label, path)
+            commentary_book_sources[name] = by_book
+            commentary_sources[name] = next(iter(by_book.values()))
+        else:
+            commentary_sources[name] = _source(entry, label, path)
     for name in commentaries:
         if name not in commentary_sources:
             raise ValueError(f"{path}: no sources.commentaries entry for {name}")
@@ -420,6 +481,7 @@ def load_config(path: Path | None = None, *, profile: str | None = None) -> Conf
         commentaries=commentaries,
         tanakh_source=_source(sources["tanakh"], "sources.tanakh", path),
         commentary_sources=commentary_sources,
+        commentary_book_sources=commentary_book_sources,
         biblical_font=_font(raw, "biblical", path),
         rashi_font=_font(raw, "rashi", path),
         typography=Typography(

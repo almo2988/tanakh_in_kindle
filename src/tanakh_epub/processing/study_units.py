@@ -154,16 +154,17 @@ def load_chapters(
     provider,
     config: Config,
     selections: list[ChapterSelection],
-) -> tuple[list[Chapter], dict[str, str], dict[str, str]]:
+) -> tuple[list[Chapter], dict[str, str], dict[str, dict[str, str]]]:
     """Fetch whole books once and slice the requested chapters out of them in memory.
 
     Returns the chapters, the text version per book, and the commentary version per
-    commentator — the versions travel with the content so the מקורות page and the build
-    manifest report what was actually used, not what config hoped for.
+    commentator per book (``{"Rashi": {"Genesis": "…"}}``) — the versions travel with the
+    content so the מקורות page and the build manifest report what was actually used, not
+    what config hoped for.
     """
     chapters: list[Chapter] = []
     text_versions: dict[str, str] = {}
-    commentary_versions: dict[str, str] = {}
+    commentary_versions: dict[str, dict[str, str]] = {}
 
     for selection in selections:
         book = selection.book
@@ -173,12 +174,15 @@ def load_chapters(
         text_versions[title] = provider.text_source(title).version_title
 
         commentary: dict[str, list[list[list[str]]]] = {}
+        book_versions: dict[str, str] = {}
         for name in config.commentaries:
             if not provider.has_commentary(name, title):
                 # Coverage is uneven; a book without Rashi renders verses only.
                 continue
             commentary[name] = provider.get_book_commentary(name, title)
-            commentary_versions[name] = provider.commentary_source(name, title).version_title
+            version = provider.commentary_source(name, title).version_title
+            book_versions[name] = version
+            commentary_versions.setdefault(name, {})[title] = version
 
         wanted = selection.chapters or tuple(
             number for number, verses in enumerate(book_text, start=1) if verses
@@ -192,7 +196,7 @@ def load_chapters(
                     commentary=commentary,
                     config=config,
                     text_version=text_versions[title],
-                    commentary_versions=commentary_versions,
+                    commentary_versions=book_versions,
                     provider_name=provider.text_source(title).provider,
                     max_verse=selection.max_verse,
                 )

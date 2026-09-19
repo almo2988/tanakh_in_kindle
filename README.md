@@ -1,153 +1,178 @@
-# תנ״ך עם פירוש רש״י — a Hebrew Tanakh + Rashi EPUB for the Kindle Paperwhite
+# תנ״ך עם פירוש רש״י — the Tanakh with Rashi, for the Kindle
 
-A Python generator that builds a reflowable Hebrew EPUB 3 of the Tanakh with Rashi's
-commentary, for reading on a **Kindle Paperwhite (12th gen, 2024)**. All content comes from
+Builds the whole Hebrew Tanakh with Rashi's commentary as **one EPUB** for a Kindle
+Paperwhite. Every verse is followed by its Rashi, in Rashi script. The text has full ניקוד
+and טעמים and is set in a font that stacks them correctly. All text comes from
 [Sefaria](https://www.sefaria.org/).
 
-Reading content is **Hebrew only**. English appears in filenames, logs, config and the
-version identifiers the source licenses require you to name — never in the book itself.
+- all 39 books, 929 chapters, 23,206 verses, 28,228 Rashi entries, in one ~5.5 MB file
+- "Go to" lists every book, and every chapter under it
+- pages turn right to left; the book itself is Hebrew only
+- built and tested on a Kindle Paperwhite (12th generation, 2024)
 
-> **Status: Phase 1 (proof of concept).** The build runs from checked-in fixtures —
-> בראשית פרק א׳ with רש״י — and needs no network. Fetching the real Tanakh from Sefaria is
-> Phase 2. `PROGRESS.md` is the authority on what is done and what is next.
-
----
-
-## Quick start
-
-```sh
-uv sync                       # or: python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 \
-    --output output/Genesis_Chapter_1.epub
-python -m tanakh_epub check output/Genesis_Chapter_1.epub
-```
-
-`check` runs EPUBCheck, and Kindle Previewer 3 as well if it is installed. Neither is
-required to build; both say "SKIPPED" rather than quietly passing when absent.
-
-Requires Python 3.12+. `scripts/epubcheck.sh` downloads EPUBCheck into `tools/` on first
-use (needs Java); `scripts/kindle_previewer.sh` cannot install Kindle Previewer, which is
-macOS/Windows only.
-
-```sh
-pytest                        # offline; network tests skipped unless RUN_NETWORK_TESTS=1
-ruff check . && ruff format .
-```
-
-### Layout experiment
-
-The page layout is not settled yet. One command builds the same content with three layouts,
-for comparison on the Paperwhite:
-
-```sh
-python -m tanakh_epub experiment-layout --chapter Genesis 1
-```
-
-This writes `output/layout_A_current.epub`, `layout_B_balanced` and `layout_C_dense`, plus a
-report of each one's parameters and sizes. Only the stylesheet, the title and the
-identifier differ between them, so all three can sit in the Kindle library together. What to compare, and at which font sizes, is in
-`docs/LAYOUT_EXPERIMENT.md`.
+The book is not distributed here: you build it yourself from Sefaria's data, in two
+commands. Why is under [Licensing](#licensing).
 
 ---
 
-## Getting the book onto the Kindle
+## Build it
 
-The Kindle does not read EPUB directly — it converts to KFX. **Which path you use changes
-what survives**, so the proof of concept is tested through both before one is frozen
-(decision D1 in `PROGRESS.md`).
+You need **Python 3.12+**, [**uv**](https://docs.astral.sh/uv/), and an internet
+connection for the one-time download.
 
-### First, on the device — this is not optional
+```sh
+git clone https://github.com/almo2988/tanakh_in_kindle.git
+cd tanakh_in_kindle
+uv sync
+uv run python -m tanakh_epub fetch     # download the text once, a few minutes
+uv run python -m tanakh_epub build     # → output/Tanakh_with_Rashi.epub, a few seconds
+```
 
-Open the book, tap **Aa** → **Font** → select **Publisher Font**.
+`fetch` downloads all 39 books and their Rashi from Sefaria into `data/cache/` (about 230
+polite requests, one second apart). It only needs to run once; after that every build
+works offline. If you run `build` before `fetch`, it stops and tells you what to download
+— it never produces a partial book.
 
-Embedded fonts apply *only* under Publisher Font. Without it the Kindle uses its stock
-Hebrew face, which stacks ניקוד and טעמים badly — which is the entire reason this project
-embeds a font. If א׳:א׳ looks wrong, check this before anything else.
+<details>
+<summary>Without uv</summary>
 
-### Path A — Calibre → KFX → USB (the default assumption)
-
-Most predictable: fonts and RTL survive reliably, but it needs desktop tooling.
-
-1. Install [Kindle Previewer 3](https://www.amazon.com/Kindle-Previewer/b?node=21381691011)
-   (macOS/Windows). The KFX plugin drives it.
-2. Install [Calibre](https://calibre-ebook.com/), then
-   *Preferences → Plugins → Get new plugins* → **KFX Output**. Restart Calibre.
-3. Add `output/Genesis_Chapter_1.epub` to the Calibre library.
-4. *Convert books* → output format **KFX** → OK.
-5. Connect the Paperwhite over USB and *Send to device*, or copy the `.kfx` into
-   `documents/` on the Kindle yourself.
-6. Eject, open the book, and select **Publisher Font**.
-
-### Path B — Send to Kindle
-
-No tooling, wireless, but Amazon's server-side converter decides what survives, and it
-sometimes drops embedded fonts.
-
-1. Go to [Send to Kindle](https://www.amazon.com/sendtokindle) (or email the file to your
-   `@kindle.com` address from an approved sender address).
-2. Upload the `.epub`, pick the device, send.
-3. Open the book on the Paperwhite and select **Publisher Font**.
-
-### Then check it — on the device, not in a desktop viewer
-
-Work through the checklist in `SPEC.md` §3.3 and record the results in the Phase 1 device
-table in `PROGRESS.md`. The short version:
-
-- ניקוד and טעמים stack correctly in בראשית א׳:א׳
-- page turns go **right to left**
-- verse numbers, geresh and gershayim render correctly
-- changing the font size scales verse, verse number and commentary together
-- **Go to** lists בראשית → פרק א׳, and the link lands in the right place
-- verses without Rashi (א׳:ג׳ in the POC) show no empty רש״י block
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -e .
+.venv/bin/python -m tanakh_epub fetch
+.venv/bin/python -m tanakh_epub build
+```
+</details>
 
 ---
 
-## How it fits together
+## Put it on the Kindle
+
+1. Go to **[amazon.com/sendtokindle](https://www.amazon.com/sendtokindle)**, drag in
+   `output/Tanakh_with_Rashi.epub`, pick your Kindle and send. (Emailing the file to your
+   `@kindle.com` address works too.)
+2. When it arrives, open it and tap **Aa → Font → Publisher Font**.
+
+**Publisher Font matters.** It is what shows the verses in the embedded biblical font, which
+stacks ניקוד and טעמים correctly; the Kindle's own Hebrew fonts do not. Rashi is always in
+Rashi script, whichever font you pick.
+
+**Updating.** A rebuilt book keeps the same identity, so sending it again replaces the copy
+on the Kindle rather than adding a second one. To keep both, build with
+`--new-identifier`.
+
+<details>
+<summary>Alternative: Calibre over USB (untested)</summary>
+
+Install [Calibre](https://calibre-ebook.com/) with the **KFX Output** plugin (which needs
+[Kindle Previewer](https://www.amazon.com/Kindle-Previewer/b?node=21381691011)), convert the
+EPUB to KFX, and copy it to the Kindle's `documents/` folder over USB. Send to Kindle is the
+path that was tested; this one is not.
+</details>
+
+---
+
+## Other things you can do
+
+```sh
+uv run python -m tanakh_epub validate            # check the downloaded text before building
+uv run python -m tanakh_epub build --book Psalms # one book
+uv run python -m tanakh_epub build --books Genesis Exodus
+uv run python -m tanakh_epub check output/Tanakh_with_Rashi.epub
+```
+
+- **`validate`** checks that every chapter and verse is present against Sefaria's own
+  counts, that every piece of markup has a rule, that nothing is lost in Unicode
+  normalization, and that both fonts can draw every character. It lists anything worth a
+  look as a warning.
+- **`check`** runs [EPUBCheck](https://www.w3.org/publishing/epubcheck/) and, if
+  installed, Kindle Previewer's conversion. EPUBCheck needs Java; on a Mac without one it
+  uses the Java inside Kindle Previewer. A missing tool is reported as skipped, never as
+  passed.
+- **`build`** also writes `Tanakh_with_Rashi.build_manifest.json` (exactly what went into
+  the book) and `Tanakh_with_Rashi.SOURCES_AND_LICENSES.md` next to the EPUB.
+- **Offline demo:** `build --chapter Genesis 1` builds בראשית פרק א׳ from the test data in
+  the repo, with no download.
+
+Settings live in `config/default.yaml`: text versions, fonts, sizes and spacing, and the
+layout profile. `experiment-layout` builds the same chapter once per layout profile for
+comparing on a device (`docs/LAYOUT_EXPERIMENT.md`).
+
+---
+
+## How it works
 
 ```
-Sefaria API                 (Phase 2; Phase 1 uses the captured fixtures)
+Sefaria export / API       fetch: whole books, never single verses; stored verbatim
       ↓
-providers/                  whole books in, never single verses
+data/cache/                the text, with its version, license and Sefaria's counts
       ↓
-processing/markup.py        explicit rules; unknown markup fails the build
-processing/normalize.py     NFC only — never strips ניקוד or טעמים
+processing/                Sefaria markup → a small internal markup, by explicit rules;
+                           unknown markup stops the build; Unicode NFC, nothing else
       ↓
-models.py                   Verse · CommentaryEntry · StudyUnit
+models.py                  Verse · CommentaryEntry · StudyUnit (a verse and its Rashi)
       ↓
-processing/study_units.py   verse + the Rashi entries on that verse
+rendering/                 one XHTML file per chapter, right to left, generated CSS
       ↓
-rendering/                  one XHTML file per chapter, RTL, generated CSS
-      ↓
-epub/                       OPF · nav.xhtml · toc.ncx · zip
+epub/                      OPF · nav · NCX · cover · sources page · build manifest → zip
 ```
 
 | Path | What it holds |
 |---|---|
-| `config/books.yaml` | the 39 books: Sefaria title, Hebrew title, slug, section |
-| `config/default.yaml` | fonts, typography, spacing, page-break hints, layout profiles, sources — every tunable |
-| `config/commentators.yaml` | Hebrew label, slug and Sefaria prefix per commentator |
-| `tests/fixtures/` | real Sefaria data, captured once by `scripts/capture_fixtures.py` |
-| `fonts/` | only fonts whose license has been read and recorded |
-| `docs/` | notes that outlive a session |
+| `config/default.yaml` | versions, fonts, typography, spacing, layout profiles, cover |
+| `config/books.yaml` | the 39 books: Sefaria title, Hebrew title, file slug, section |
+| `config/commentators.yaml` | Hebrew label and Sefaria prefix per commentator |
+| `fonts/` | the two embedded fonts and their licenses |
+| `docs/DECISIONS.md` | every design decision, and what testing on the Kindle taught |
+| `docs/MARKUP_RULES.md` | how each piece of Sefaria markup is handled |
+| `docs/VERSION_SELECTION.md` | why these Tanakh and Rashi versions |
+| `SPEC.md`, `SPEC_DATA_SOURCE.md` | the full specification |
+| `tests/fixtures/` | real Sefaria data for בראשית א׳, so the tests run offline |
 
-Reading order for anyone picking this up: `CLAUDE.md` (how to work) → `PROGRESS.md` (where
-we are) → `SPEC.md` and `SPEC_DATA_SOURCE.md` (what to build).
+Rules the code keeps: the Hebrew text is never altered (Unicode NFC only, never stripping
+ניקוד or טעמים); Sefaria markup without a rule fails the build rather than being dropped;
+Sefaria is read only through its API and public export, never by scraping the website;
+the CSS stays within what the Kindle reliably supports.
+
+### Development
+
+```sh
+uv sync --extra dev
+uv run pytest                              # offline
+RUN_NETWORK_TESTS=1 uv run pytest          # also checks the live Sefaria endpoints
+uv run ruff check . && uv run ruff format .
+```
+
+`CLAUDE.md` holds the working rules for AI-assisted changes; they apply to people too.
+Anything that changes what the reader sees needs a test on a real Kindle before it counts
+as done.
 
 ---
 
-## Content and licensing
+## Licensing
 
-Texts come from Sefaria under the versions named in `config/default.yaml`, and the built
-EPUB reproduces those names and licenses on its מקורות page. The Phase 1 fixtures hold:
+**The code** is MIT-licensed (`LICENSE`).
 
-| | Version | License |
-|---|---|---|
-| Tanakh | *Miqra according to the Masorah* | CC BY-SA |
-| Rashi | *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929–1934* | Public Domain |
+**The fonts** in `fonts/` are redistributable and embedded under their own licenses:
+Taamey Frank CLM (GPL-2.0 with the Culmus font-embedding exception) and Noto Rashi Hebrew
+(SIL OFL 1.1). See `fonts/README.md`.
 
-Both are provisional until decisions D5 and D6 in `PROGRESS.md`.
+**The texts** are not in this repository, apart from בראשית פרק א׳ and its Rashi in
+`tests/fixtures/` (MAM, CC BY-SA, and Rosenbaum & Silbermann, Public Domain; each file names
+its source). `fetch` downloads the rest from Sefaria, and the built book names each version
+and its license on its last page (מקורות):
 
-Two fonts are embedded, each with its license read and recorded in `fonts/README.md`:
-**Taamey Frank CLM** for the biblical text (GPL-2.0 with the Culmus font-embedding
-exception) and **Noto Rashi Hebrew** for the commentary (SIL OFL 1.1). The generator code
-itself is MIT.
+| | Version | License | Books |
+|---|---|---|---|
+| Tanakh | *Miqra according to the Masorah* | CC BY-SA | all 39 |
+| Rashi | *Rosenbaum & Silbermann, 1929–1934* | Public Domain | the Torah |
+| Rashi | Metsudah editions | CC BY | Joshua, Kings, the five Megillot |
+| Rashi | *Sefaria vocalized edition* | not stated by Sefaria | the other 26 books |
+
+Sefaria does not state a license for the vocalized Rashi used in most of the Prophets and
+Writings. It was chosen for its vowel points. So **build the book for your own reading and
+do not redistribute the EPUB** unless you have cleared that edition with Sefaria. The
+reasoning, and the alternative (an unvocalized Public Domain edition), are in
+`docs/VERSION_SELECTION.md`.
+
+This project is not affiliated with Sefaria or Amazon.
