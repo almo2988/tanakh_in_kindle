@@ -36,17 +36,16 @@ ruff check . && ruff format .
 
 ### Layout experiment
 
-The page layout is not settled yet. One command builds the same content with four layouts,
+The page layout is not settled yet. One command builds the same content with three layouts,
 for comparison on the Paperwhite:
 
 ```sh
 python -m tanakh_epub experiment-layout --chapter Genesis 1
 ```
 
-This writes `output/layout_A_current.epub`, `layout_B_balanced`, `layout_C_dense` and
-`layout_D_dense_break_aware`, plus a report of each one's parameters and sizes. Only the
-stylesheet, the title and the identifier differ between them, so all four can sit in the
-Kindle library together. What to compare, and at which font sizes, is in
+This writes `output/layout_A_current.epub`, `layout_B_balanced` and `layout_C_dense`, plus a
+report of each one's parameters and sizes. Only the stylesheet, the title and the
+identifier differ between them, so all three can sit in the Kindle library together. What to compare, and at which font sizes, is in
 `docs/LAYOUT_EXPERIMENT.md`.
 
 ---

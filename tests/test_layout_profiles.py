@@ -1,7 +1,7 @@
 """The layout experiment — docs/LAYOUT_EXPERIMENT.md, SPEC.md §13, §14, §24, §26, §27.
 
-Four layout profiles, one renderer. These tests pin what each profile emits, hold every
-profile to the same Kindle-safe CSS rules, and prove that the four EPUBs say exactly the
+Three layout profiles, one renderer. These tests pin what each profile emits, hold every
+profile to the same Kindle-safe CSS rules, and prove that the EPUBs say exactly the
 same thing and differ only in how it is laid out.
 """
 
@@ -30,19 +30,17 @@ from tanakh_epub.rendering.css import render_css
 from tanakh_epub.rendering.html_renderer import ChapterRenderer
 
 XHTML = "{http://www.w3.org/1999/xhtml}"
-PROFILES = ["current", "balanced", "dense", "dense_break_aware"]
+PROFILES = ["current", "balanced", "dense"]
 
 EXPECTED = {
     # name: label, (biblical, rashi, verse number, divider) scales, (biblical, rashi) line
-    # heights, (study unit, verse, entry, paragraph) spacing, divider alignment, and
-    # whether the optional page-break hints are on.
+    # heights, (study unit, verse, entry, paragraph) spacing, and divider alignment.
     "current": {
         "label": "A-current",
         "scales": (1.25, 0.9, 0.75, 0.85),
         "line_heights": (1.9, 1.65),
         "spacing": (1.1, 0.35, 0.4, 0.3),
         "divider": ("center", "0.5em 0 0.4em 0", "0.15em 0 0.15em 0"),
-        "optional_breaks": False,
     },
     "balanced": {
         "label": "B-balanced",
@@ -50,7 +48,6 @@ EXPECTED = {
         "line_heights": (1.75, 1.5),
         "spacing": (0.75, 0.3, 0.25, 0.2),
         "divider": ("right", "0.4em 0 0.25em 0", "0.12em 0 0 0"),
-        "optional_breaks": False,
     },
     "dense": {
         "label": "C-dense",
@@ -58,15 +55,6 @@ EXPECTED = {
         "line_heights": (1.6, 1.42),
         "spacing": (0.55, 0.2, 0.15, 0.12),
         "divider": ("right", "0.3em 0 0.18em 0", "0.08em 0 0 0"),
-        "optional_breaks": False,
-    },
-    "dense_break_aware": {
-        "label": "D-dense-break-aware",
-        "scales": (1.1, 0.86, 0.7, 0.78),
-        "line_heights": (1.6, 1.42),
-        "spacing": (0.55, 0.2, 0.15, 0.12),
-        "divider": ("right", "0.3em 0 0.18em 0", "0.08em 0 0 0"),
-        "optional_breaks": True,
     },
 }
 
@@ -98,7 +86,7 @@ def _rules(css: str) -> dict[str, dict[str, str]]:
 # ---- Profiles exist and resolve ------------------------------------------
 
 
-def test_the_four_profiles_are_defined_in_order(config) -> None:
+def test_the_three_profiles_are_defined_in_order(config) -> None:
     assert list(config.layout_profiles) == PROFILES
     assert [p.label for p in config.layout_profiles.values()] == [
         EXPECTED[name]["label"] for name in PROFILES
@@ -108,7 +96,7 @@ def test_the_four_profiles_are_defined_in_order(config) -> None:
 def test_hebrew_labels_are_hebrew_and_distinct(config) -> None:
     """The label goes into the reader-visible title of an experiment build."""
     labels = [p.hebrew_label for p in config.layout_profiles.values()]
-    assert len(set(labels)) == 4
+    assert len(set(labels)) == len(PROFILES)
     for label in labels:
         assert not re.search(r"[A-Za-z]", label), label
 
@@ -142,14 +130,6 @@ def test_profiles_never_change_fonts(profile_configs, config) -> None:
         )
 
 
-def test_d_is_c_plus_page_break_hints(profile_configs) -> None:
-    """C against D must isolate the hints — nothing else may differ."""
-    c, d = profile_configs["dense"], profile_configs["dense_break_aware"]
-    assert c.typography == d.typography
-    assert c.spacing == d.spacing
-    assert c.breaks != d.breaks
-
-
 def test_biblical_line_height_clears_the_stacked_marks(profile_configs) -> None:
     """Density never at the cost of ניקוד and טעמים colliding between lines."""
     for name, variant in profile_configs.items():
@@ -157,9 +137,9 @@ def test_biblical_line_height_clears_the_stacked_marks(profile_configs) -> None:
 
 
 def test_every_profile_has_its_own_identifier(profile_configs) -> None:
-    """Or the Kindle treats four sideloads as one book, each replacing the last."""
+    """Or the Kindle treats the sideloads as one book, each replacing the last."""
     hashes = {variant.config_hash for variant in profile_configs.values()}
-    assert len(hashes) == 4
+    assert len(hashes) == len(PROFILES)
 
 
 # ---- CSS, per profile ----------------------------------------------------
@@ -267,13 +247,30 @@ def test_the_required_break_hints_are_in_every_profile(name, profile_configs) ->
 
 
 @pytest.mark.parametrize("name", PROFILES)
-def test_optional_break_hints_follow_the_profile(name, profile_configs) -> None:
+def test_no_profile_uses_the_optional_break_hints(name, profile_configs) -> None:
+    """D-dense-break-aware, the one profile that used them, was rejected by the human."""
     rules = _rules(render_css(profile_configs[name]))
-    on = EXPECTED[name]["optional_breaks"]
-    assert (rules[".commentary-entry"].get("break-inside") == "avoid") is on
-    assert (rules[".commentary-divider"].get("break-before") == "avoid") is on
-    assert (rules[".commentary-divider"].get("break-after") == "avoid") is on
-    assert (rules[".book-heading"].get("break-after") == "avoid") is on
+    assert "break-inside" not in rules[".commentary-entry"]
+    assert not {"break-before", "break-after"} & rules[".commentary-divider"].keys()
+    assert "break-after" not in rules[".book-heading"]
+
+
+def test_optional_break_hints_are_emitted_when_a_profile_asks(tmp_path: Path) -> None:
+    breaks = {
+        "keep_each_entry_together": True,
+        "keep_divider_with_neighbours": True,
+        "keep_book_heading_with_next": True,
+    }
+    path = _config_with_profiles(
+        tmp_path, {"x": {"label": "X", "hebrew_label": "א", "breaks": breaks}}, profile="x"
+    )
+    rules = _rules(render_css(load_config(path)))
+    assert rules[".commentary-entry"]["break-inside"] == "avoid"
+    assert rules[".commentary-entry"]["page-break-inside"] == "avoid"
+    assert rules[".commentary-divider"]["break-before"] == "avoid"
+    assert rules[".commentary-divider"]["page-break-after"] == "avoid"
+    assert rules[".book-heading"]["break-after"] == "avoid"
+    assert "break-inside" not in rules[".study-unit"]
 
 
 @pytest.mark.parametrize("name", PROFILES)
@@ -343,7 +340,6 @@ def test_variant_file_names(variants) -> None:
         "layout_A_current.epub",
         "layout_B_balanced.epub",
         "layout_C_dense.epub",
-        "layout_D_dense_break_aware.epub",
     ]
     assert output_name(variants[0].profile) == "layout_A_current.epub"
 
@@ -373,8 +369,8 @@ def test_variants_differ_in_title_and_identifier_only_in_metadata(variants) -> N
         assert title == f"תנ״ך עם פירוש רש״י — {variant.profile.hebrew_label}"
         assert profile == variant.profile.label
         seen.append((title, identifier))
-    assert len({t for t, _ in seen}) == 4
-    assert len({i for _, i in seen}) == 4
+    assert len({t for t, _ in seen}) == len(PROFILES)
+    assert len({i for _, i in seen}) == len(PROFILES)
 
 
 def test_content_differences_catches_a_changed_chapter(variants, tmp_path: Path) -> None:
@@ -496,7 +492,7 @@ def test_a_config_without_profiles_renders_its_base_sections(tmp_path: Path) -> 
 # ---- CLI --------------------------------------------------------------------
 
 
-def test_experiment_layout_command_writes_four_epubs_and_a_report(tmp_path: Path, capsys) -> None:
+def test_experiment_layout_command_writes_every_epub_and_a_report(tmp_path: Path, capsys) -> None:
     code = main(
         [
             "experiment-layout",
@@ -515,7 +511,6 @@ def test_experiment_layout_command_writes_four_epubs_and_a_report(tmp_path: Path
         "layout_A_current.epub",
         "layout_B_balanced.epub",
         "layout_C_dense.epub",
-        "layout_D_dense_break_aware.epub",
     ]
     out = capsys.readouterr().out
     assert "byte-identical" in out
@@ -530,16 +525,16 @@ def test_experiment_layout_can_build_a_subset(tmp_path: Path) -> None:
             "Genesis",
             "1",
             "--profiles",
+            "balanced",
             "dense",
-            "dense_break_aware",
             "--output-dir",
             str(tmp_path),
         ]
     )
     assert code == 0
     assert sorted(p.name for p in tmp_path.glob("*.epub")) == [
+        "layout_B_balanced.epub",
         "layout_C_dense.epub",
-        "layout_D_dense_break_aware.epub",
     ]
 
 

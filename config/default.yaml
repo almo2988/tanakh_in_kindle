@@ -106,7 +106,7 @@ layout:
   page_break_before_book: true
   profile: current               # OPEN (D10) — which of layout_profiles a normal build uses
 
-# Layout experiment — see docs/LAYOUT_EXPERIMENT.md. Four candidates built from identical
+# Layout experiment — see docs/LAYOUT_EXPERIMENT.md. Three candidates built from identical
 # content by `python -m tanakh_epub experiment-layout`, for the Paperwhite to choose between.
 # Each profile overrides keys of `typography` (sizes and line heights only), `spacing` and
 # `breaks` above; anything it does not name keeps the value above. No profile can change a
@@ -154,8 +154,7 @@ layout_profiles:
     hebrew_label: "פריסה ג׳"
     description: >
       Noticeably denser: biblical line pitch about a quarter shorter than A, Rashi a little
-      smaller, compact spacing. Same page-break hints as A and B, so C against D isolates
-      the effect of the hints.
+      smaller, compact spacing. Same page-break hints as A and B.
     typography:
       biblical_scale: 1.1
       rashi_scale: 0.86
@@ -173,19 +172,6 @@ layout_profiles:
       divider_align: right
       entry: 0.15
       rashi_paragraph: 0.12
-
-  dense_break_aware:
-    label: D-dense-break-aware
-    hebrew_label: "פריסה ד׳"
-    description: >
-      C's typography and spacing exactly, plus every optional page-break hint: each Rashi
-      entry avoids splitting, the divider stays with its verse and its first entry, and
-      the book title stays with the chapter heading. The study unit as a whole still splits.
-    extends: dense
-    breaks:
-      keep_each_entry_together: true
-      keep_divider_with_neighbours: true
-      keep_book_heading_with_next: true
 
 cover:
   mode: none                     # none | generated | custom — generated cover lands in Phase 3 (3.5)

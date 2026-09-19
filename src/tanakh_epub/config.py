@@ -168,7 +168,7 @@ class Config:
     @property
     def config_hash(self) -> str:
         """Stable hash of the config file and the layout profile applied to it, for the build
-        manifest — and for the identifier, so four layout variants of the same content
+        manifest — and for the identifier, so the layout variants of the same content
         sit side by side on the device instead of replacing one another."""
         canonical = yaml.safe_dump(
             {"config": self.raw, "layout_profile": self.layout_profile.name},

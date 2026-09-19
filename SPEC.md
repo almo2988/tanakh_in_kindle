@@ -362,7 +362,7 @@ Default hierarchy (configurable via `typography.*_scale`):
 
 When Kindle's font size changes, all of these scale together and the ratios stay intact. Kindle respects relative `font-size` and `line-height`.
 
-Line heights (`typography.*_line_height`), vertical spacing (`spacing.*`) and the optional page-break hints (`breaks.*`) are configurable too. A **layout profile** (`layout_profiles.*`, chosen by `layout.profile`) overrides any of them, but never a font or the content. Four profiles are defined for the device comparison in `docs/LAYOUT_EXPERIMENT.md` (decision D10); until D10 is settled, a normal build uses the control, `current`, which has the values in the table above.
+Line heights (`typography.*_line_height`), vertical spacing (`spacing.*`) and the optional page-break hints (`breaks.*`) are configurable too. A **layout profile** (`layout_profiles.*`, chosen by `layout.profile`) overrides any of them, but never a font or the content. Three profiles are defined for the device comparison in `docs/LAYOUT_EXPERIMENT.md` (decision D10); until D10 is settled, a normal build uses the control, `current`, which has the values in the table above.
 
 Note for the Paperwhite (7″): Rashi script at 0.85em is a legibility gamble. The POC must include a legibility check on the device; if it fails, raise `rashi_scale` (0.9–0.95) or set `rashi_script: false` (§15.2) before scaling to the full Tanakh.
 

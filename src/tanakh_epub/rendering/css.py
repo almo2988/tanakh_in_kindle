@@ -4,7 +4,7 @@ Generated rather than checked in, because every size, line height, space and opt
 page-break hint comes from the config — ``typography``, ``spacing`` and ``breaks``, with
 the active layout profile applied on top — and the two ``@font-face`` rules come from
 ``fonts.*``. A hand-written CSS file would drift from the config the first time a scale
-changed, and the layout experiment needs four stylesheets from one renderer.
+changed, and the layout experiment needs several stylesheets from one renderer.
 
 Constraints, all from the device:
 

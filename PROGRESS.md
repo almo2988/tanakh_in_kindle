@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | Two things are waiting on the device. (1) **The font fix (from main):** decoding the Kindle conversion (KPF) showed Kindle's converter makes the font covering the most text the book's *default* font, which the reader's font menu replaces. Rashi outweighs the verses ~3:1, so the Rashi font took that slot and the commentary showed in the Kindle's own font. Fixed: the commentary is dealt over placeholder font names so the biblical font becomes the default and every commentary style names the Rashi font explicitly — verified in the decoded KPF. (2) **The layout experiment (D10):** four layout variants of בראשית א׳, built from identical content, for choosing a layout on the Paperwhite. See `docs/LAYOUT_EXPERIMENT.md`. |
+| **Status** | Two things are waiting on the device. (1) **The font fix (from main):** decoding the Kindle conversion (KPF) showed Kindle's converter makes the font covering the most text the book's *default* font, which the reader's font menu replaces. Rashi outweighs the verses ~3:1, so the Rashi font took that slot and the commentary showed in the Kindle's own font. Fixed: the commentary is dealt over placeholder font names so the biblical font becomes the default and every commentary style names the Rashi font explicitly — verified in the decoded KPF. (2) **The layout experiment (D10):** three layout variants of בראשית א׳, built from identical content, for choosing a layout on the Paperwhite. See `docs/LAYOUT_EXPERIMENT.md`. |
 | **Blocked on** | the device test. |
 | **Last session** | 2026-09-19 |
-| **Next action** | **(human)** run `python -m tanakh_epub experiment-layout --chapter Genesis 1`, then sideload the four `output/layout_*.epub` files. Font check on any one: once with Publisher Font, once with another font — expected Rashi in Rashi script both times; verses in Taamey Frank under Publisher Font, in the chosen font otherwise. Then compare all four at small, default and large font sizes using `docs/LAYOUT_EXPERIMENT.md`, fill in the "Layout experiment" table below, and decide D10. |
+| **Next action** | **(human)** run `python -m tanakh_epub experiment-layout --chapter Genesis 1`, then sideload the three `output/layout_*.epub` files. Font check on any one: once with Publisher Font, once with another font — expected Rashi in Rashi script both times; verses in Taamey Frank under Publisher Font, in the chosen font otherwise. Then compare all three at small, default and large font sizes using `docs/LAYOUT_EXPERIMENT.md`, fill in the "Layout experiment" table below, and decide D10. |
 
 ---
 
@@ -192,9 +192,10 @@ smaller `rashi_scale`, a stronger divider, keeping long entries in one block. ~~
 wait for the font fix to be confirmed first.~~ Started 2026-09-19, at the human's request,
 as the layout experiment below. It uses the same fonts, so it does not depend on the font fix.
 
-**Layout experiment (D10) — 2026-09-19.** The same content is built four ways, so the
-Paperwhite can decide the layout: A-current (control), B-balanced, C-dense, and
-D-dense-break-aware (C plus page-break hints). Parameters, reasoning and the test protocol
+**Layout experiment (D10) — 2026-09-19.** The same content is built three ways, so the
+Paperwhite can decide the layout: A-current (control), B-balanced and C-dense.
+~~D-dense-break-aware (C plus page-break hints)~~ was rejected by the human on
+2026-09-19 and removed. Its `breaks` switches stay in the config, all off. Parameters, reasoning and the test protocol
 are in `docs/LAYOUT_EXPERIMENT.md`. How it is built:
 
 - Typography, spacing and page-break hints now come from `typography`, `spacing` and
@@ -204,14 +205,14 @@ are in `docs/LAYOUT_EXPERIMENT.md`. How it is built:
   for the divider.
 - **The divider changed for every build:** one rule above the label, no rule below. That
   was a requirement, not something under test, so A carries it too.
-- `experiment-layout` builds all four from one load of the content. It fails if anything
+- `experiment-layout` builds every variant from one load of the content. It fails if anything
   other than the stylesheet, title or identifier differs between them. The title carries a
-  Hebrew label (`פריסה א׳`–`ד׳`) and the identifier differs per profile, so all four can
+  Hebrew label (`פריסה א׳`–`ג׳`) and the identifier differs per profile, so all of them can
   sit in the library together.
-- The whole study unit is never asked to stay together. In D, each individual entry is.
+- The whole study unit is never asked to stay together.
 - The biblical line heights were checked against the font's real mark extents, measured
   with HarfBuzz: 1.24em of ink at most, and 1.6 is the lowest line height used.
-- Kindle Previewer 4 converted all four: Enhanced Typesetting supported, 0 errors, 0
+- Kindle Previewer 4 converted every variant: Enhanced Typesetting supported, 0 errors, 0
   quality issues. EPUBCheck was **not** run this session, because there is no Java on this
   Mac. It must be run before the experiment counts as clean.
 - **Not verifiable yet:** chapter and book boundaries. The offline fixtures hold one
@@ -219,19 +220,19 @@ are in `docs/LAYOUT_EXPERIMENT.md`. How it is built:
 
 **Device results — layout experiment** (fill per variant; note font size where it matters)
 
-| Check (`docs/LAYOUT_EXPERIMENT.md`) | A-current | B-balanced | C-dense | D-dense-break-aware |
-|---|---|---|---|---|
-| Commentary in Rashi script (font fix) | | | | |
-| Biblical text readable (small / default / large) | | | | |
-| No ניקוד/טעמים collisions between lines | | | | |
-| Rashi readable (also D4) | | | | |
-| Verse → Rashi association obvious | | | | |
-| No ugly fragments at page ends | | | | |
-| No large blank areas | | | | |
-| Useful text per screen | | | | |
-| Comfortable over a longer read | | | | |
-| Scales cleanly when font size changes | | | | |
-| Chapter start looks right | | | | |
+| Check (`docs/LAYOUT_EXPERIMENT.md`) | A-current | B-balanced | C-dense |
+|---|---|---|---|
+| Commentary in Rashi script (font fix) | | | |
+| Biblical text readable (small / default / large) | | | |
+| No ניקוד/טעמים collisions between lines | | | |
+| Rashi readable (also D4) | | | |
+| Verse → Rashi association obvious | | | |
+| No ugly fragments at page ends | | | |
+| No large blank areas | | | |
+| Useful text per screen | | | |
+| Comfortable over a longer read | | | |
+| Scales cleanly when font size changes | | | |
+| Chapter start looks right | | | |
 
 *What the POC actually contains:* בראשית א׳:א׳–י׳, 10 verses, 17 Rashi entries across 9
 verses, and א׳:ג׳ deliberately has no Rashi — that is the "no empty commentary block" case
@@ -356,7 +357,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 | D7 | Sefaria index titles in `books.yaml` verified via API | **partial** — `Genesis` and `Rashi on Genesis` confirmed against the live API during fixture capture; the other 38 are still from SPEC §9 and are verified in Phase 2 | 2026-09-11 | `config/books.yaml` |
 | D8 | EPUB writer: hand-rolled (zipfile + Jinja2) vs `ebooklib` | **hand-rolled** — SPEC §32 admits `ebooklib` only if its output passes EPUBCheck *and* Kindle Previewer unmodified. Every file that matters here (OPF spine with `page-progression-direction`, the NCX kept beside the nav document, exact font media types) is one Kindle quirk away from needing a hand edit, and `zipfile` gives that control in ~100 lines. Passing EPUBCheck with 0 errors/0 warnings. | 2026-09-11 | `epub/builder.py` docstring |
 | D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **inline.** `<details>` and the noteref popup were both built and tested on the Paperwhite; a tap turns the page, so neither can work. | 2026-09-19 | `SPEC.md` §2, PROGRESS Phase 1 notes |
-| D10 | Layout profile: A-current / B-balanced / C-dense / D-dense-break-aware | **open (human)** — four candidates built from identical content; the Paperwhite decides. `layout.profile: current` (the control) until then. Also records whether the page-break hints visibly do anything on the device. | | `layout.profile`, `layout_profiles`, `docs/LAYOUT_EXPERIMENT.md` |
+| D10 | Layout profile: A-current / B-balanced / C-dense | **open (human)** — three candidates built from identical content; the Paperwhite decides. `layout.profile: current` (the control) until then. D-dense-break-aware was rejected by the human (2026-09-19) and removed. | | `layout.profile`, `layout_profiles`, `docs/LAYOUT_EXPERIMENT.md` |
 
 ---
 
@@ -364,6 +365,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-19 (4) | 1 | Removed layout variant D-dense-break-aware at the human's request: it was rejected. The experiment now builds A-current, B-balanced and C-dense. The `breaks` switches remain in the config, all off, with a test that they still emit correctly if turned on. 221 tests pass, ruff clean. | **(human)** sideload the three variants and decide D10. | Which of A, B, C? |
 | 2026-09-19 (3) | 1 | Layout experiment (D10), at the human's request. Layout profiles in the config: `typography` gains line heights, and new `spacing` and `breaks` sections are overridden per profile. One renderer. The divider now has a single top rule in every build. New `experiment-layout` command builds A-current, B-balanced, C-dense and D-dense-break-aware from one load of the content, checks that only the stylesheet, title and identifier differ, and prints each variant's parameters and sizes. `build --layout-profile` added. Line heights checked against HarfBuzz-measured mark extents. 226 tests pass, ruff clean. Kindle Previewer 4 converts all four with 0 errors. EPUBCheck not run (no Java). | **(human)** sideload the four variants; answer the font question; fill in the layout table; decide D10. | 1. Which layout? 2. Do the page-break hints in D visibly change anything? 3. Amend SPEC §16 (one embedded family per stack)? |
 | 2026-09-19 (2) | 1 | Decoded the Kindle Previewer KPF: the converter promotes the most-used font to the book default, which the reader's font replaces — the Rashi font got that slot in every build. Commentary now dealt over placeholder font names (`CommentaryParts`) so the biblical font is the default and Rashi is named explicitly; verified in the decoded KPF. 168 tests pass, ruff clean; EPUBCheck not run (no Java on this Mac). | **(human)** sideload `output/Genesis_Chapter_1.kpf`, check under Publisher Font and one other font. | 1. Rashi script in both? 2. OK that verses follow the reader's font choice outside Publisher Font? |
 | 2026-09-19 | 1 | Reconciled with the abandoned `expandable-rashi-details` branch. D9 closed: `<details>` and popup both fail on the device because a tap turns the page; commentary stays inline, stated in SPEC §2. Re-applied the branch's entry-id fix (book slug, not lower-cased title) with a regression test for `I Samuel`. 163 tests pass, ruff clean. | **(human)** unchanged: confirm Rashi script on the device. Delete the remote branch if wanted. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 (one embedded family per stack)? |

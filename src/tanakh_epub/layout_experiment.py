@@ -8,10 +8,10 @@ is a device question (decision D10), not something this code can measure.
 What legitimately differs between the variants, and why:
 
 * ``styles/main.css`` — the point of the exercise.
-* ``dc:title`` gets the profile's Hebrew label (``פריסה ג׳``), or the four books are
+* ``dc:title`` gets the profile's Hebrew label (``פריסה ג׳``), or the variants are
   indistinguishable in the Kindle library.
 * ``dc:identifier`` and the ``tanakh:config-hash``/``tanakh:layout-profile`` metadata are
-  derived from the profile, or the device would treat the four as one book and each
+  derived from the profile, or the device would treat them as one book and each
   sideload would replace the last.
 """
 
