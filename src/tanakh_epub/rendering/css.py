@@ -18,15 +18,19 @@ Constraints, all from the device:
 * ``break-*`` are hints, always emitted with their CSS 2 ``page-break-*`` twin. Whether
   the Paperwhite honours them is what the layout experiment finds out; nothing may depend
   on it either way (§13, §27).
-* **One embedded font family per ``font-family`` stack**, followed by a generic. Two
-  embedded families in one stack is the single thing the Paperwhite was found not to
-  honour, and ``render_css`` must never emit it again — ``tests/test_rendering.py`` asserts
-  as much.
+* **One embedded font family per ``font-family`` stack**, followed by a generic.
+* **The Rashi font must never be the heaviest first family.** Kindle's converter turns
+  that one into the book's default font, which the reader's font menu replaces — the
+  real reason the commentary never showed in Rashi script on the device. See
+  `CommentaryParts`.
 """
 
 from __future__ import annotations
 
+import re
+
 from ..config import Config
+from ..models import Chapter
 
 FONT_MEDIA_TYPES = {
     ".ttf": "application/vnd.ms-opentype",
@@ -59,6 +63,75 @@ def font_media_type(suffix: str) -> str:
             f'Font extension "{suffix}" is not embeddable here. '
             f"WOFF does not survive Kindle conversion reliably (SPEC.md §15); use TTF or OTF."
         ) from None
+
+
+COMMENTARY_PART_FAMILY = "Rashi Part"
+"""Placeholder family names that head the commentary stacks. No font by these names exists;
+each stack falls straight through to the Rashi font. See `CommentaryParts`."""
+
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _text_volume(markup: str) -> int:
+    return len(_TAG.sub("", markup))
+
+
+class CommentaryParts:
+    """Spreads the commentary over several placeholder font names — the fix for the Rashi
+    font the Paperwhite never showed.
+
+    Kindle's converter (Kindle Previewer / KFX) takes the first family of whichever
+    `font-family` stack covers the most text, makes it the book's **default** font, and
+    rewrites every style that names it to just ``default``. On the device ``default`` is
+    exactly what the reader's font menu replaces. Rashi outweighs the verses roughly three
+    to one, so the Rashi font always became the default, and the commentary came out in
+    the Kindle's own square Hebrew font. Seen by decoding the converted KPF, in every build
+    since Phase 1 began.
+
+    So each commentary paragraph's stack starts with one of several placeholder names,
+    ``"Rashi Part 0", "Noto Rashi Hebrew", serif``. Paragraphs are dealt to the lightest
+    part in order, and there are enough parts that each carries at most half the verse
+    text's volume. The biblical font is then the heaviest first family, becomes the
+    default, and the Rashi font stays named explicitly in every commentary style.
+
+    Only useful when the commentary has a font of its own; with `rashi_script: false` the
+    commentary is in the biblical font and there is nothing to protect.
+    """
+
+    def __init__(self, count: int, biblical: int = 0) -> None:
+        self.count = count
+        self.biblical = biblical
+        self.loads = [0] * count
+
+    @classmethod
+    def plan(cls, chapters: list[Chapter], config: Config) -> CommentaryParts:
+        if not config.typography.rashi_script:
+            return cls(0)
+        biblical = commentary = 0
+        for chapter in chapters:
+            for unit in chapter.study_units:
+                biblical += _text_volume(unit.verse.hebrew_text)
+                commentary += sum(_text_volume(e.text) for e in unit.commentaries)
+        if commentary == 0:
+            return cls(0)
+        # Half the verse volume per part leaves room for greedy dealing to be uneven by
+        # up to one long paragraph; one extra part on top for the same reason.
+        share = max(1, biblical // 2)
+        return cls(-(-commentary // share) + 1, biblical)
+
+    @property
+    def protects_rashi_font(self) -> bool:
+        """False when one part still outweighs the verses — possible only in a build so
+        small that a single Rashi paragraph is longer than all its verses together (the
+        ten-verse POC: Rashi on 1:1 alone). Paragraphs are not split, so no plan can help."""
+        return not self.count or max(self.loads) < self.biblical
+
+    def assign(self, paragraph: str) -> int | None:
+        if not self.count:
+            return None
+        part = self.loads.index(min(self.loads))
+        self.loads[part] += _text_volume(paragraph)
+        return part
 
 
 def _n(value: float) -> str:
@@ -101,7 +174,7 @@ def _optional_breaks(config: Config) -> str:
     return "\n/* Optional hints — `breaks` in the config. */\n\n" + "\n\n".join(rules) + "\n"
 
 
-def render_css(config: Config) -> str:
+def render_css(config: Config, commentary_parts: int = 0) -> str:
     t = config.typography
     sp = config.spacing
     biblical = config.biblical_font
@@ -109,13 +182,9 @@ def render_css(config: Config) -> str:
 
     # One embedded family per stack, then a generic — never two embedded families.
     #
-    # SPEC §16 writes this as `"Rashi", "BiblicalHebrew", serif`, and on the Paperwhite
-    # that is the one rule in the whole stylesheet that does not take effect. Six rounds of
-    # device testing narrowed to it: every rule naming a single embedded family plus a
-    # generic applies correctly, and `.commentary-text` — the only rule naming two — was
-    # the only failure. SPEC §0 settles the conflict in the device's favour.
-    #
-    # Nothing is lost by dropping the middle entry. It existed so a character missing from
+    # SPEC §16 writes this as `"Rashi", "BiblicalHebrew", serif`. Dropping the middle
+    # entry did not by itself fix the device — see CommentaryParts for what did — but it
+    # stays: nothing is lost by dropping the middle entry. It existed so a character missing from
     # the Rashi font would fall back to the biblical one, and tests/test_fonts.py already
     # proves no such character exists in the commentary: it checks the embedded font's cmap
     # against the actual text on every run.
@@ -124,6 +193,13 @@ def render_css(config: Config) -> str:
     )
     dibur_stack = (
         f'"{biblical.family}", serif' if t.dibur_hamatchil_in_biblical_font else commentary_stack
+    )
+
+    part_rules = "".join(
+        f".commentary-text.part-{i} {{\n"
+        f'  font-family: "{COMMENTARY_PART_FAMILY} {i}", "{rashi.family}", serif;\n'
+        "}\n\n"
+        for i in range(commentary_parts)
     )
 
     book_break = _break_hint("before", "page") if config.layout.page_break_before_book else ""
@@ -267,6 +343,11 @@ h1, h2 {{
   text-indent: 0;
 }}
 
+/* The commentary's stack opens with a placeholder name, dealt over several
+   parts, so that Kindle's converter never makes the Rashi font the book's
+   default font — the one slot the reader's font menu replaces. See
+   CommentaryParts in rendering/css.py. */
+{part_rules}
 .dibur-hamatchil {{
   font-family: {dibur_stack};
   font-weight: bold;

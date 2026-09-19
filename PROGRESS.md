@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | Two things are waiting on the device. (1) **The font fix:** the stylesheet now names one embedded family per `font-family` stack. Is the commentary in Rashi script now? (2) **The layout experiment (D10):** four layout variants of בראשית א׳, built from identical content, for choosing a layout on the Paperwhite. See `docs/LAYOUT_EXPERIMENT.md`. |
+| **Status** | Two things are waiting on the device. (1) **The font fix (from main):** decoding the Kindle conversion (KPF) showed Kindle's converter makes the font covering the most text the book's *default* font, which the reader's font menu replaces. Rashi outweighs the verses ~3:1, so the Rashi font took that slot and the commentary showed in the Kindle's own font. Fixed: the commentary is dealt over placeholder font names so the biblical font becomes the default and every commentary style names the Rashi font explicitly — verified in the decoded KPF. (2) **The layout experiment (D10):** four layout variants of בראשית א׳, built from identical content, for choosing a layout on the Paperwhite. See `docs/LAYOUT_EXPERIMENT.md`. |
 | **Blocked on** | the device test. |
 | **Last session** | 2026-09-19 |
-| **Next action** | **(human)** run `python -m tanakh_epub experiment-layout --chapter Genesis 1`, then sideload the four `output/layout_*.epub` files with Publisher Font selected. Any one of them answers the font question. Then compare all four at small, default and large font sizes using `docs/LAYOUT_EXPERIMENT.md`, fill in the "Layout experiment" table below, and decide D10. |
+| **Next action** | **(human)** run `python -m tanakh_epub experiment-layout --chapter Genesis 1`, then sideload the four `output/layout_*.epub` files. Font check on any one: once with Publisher Font, once with another font — expected Rashi in Rashi script both times; verses in Taamey Frank under Publisher Font, in the chosen font otherwise. Then compare all four at small, default and large font sizes using `docs/LAYOUT_EXPERIMENT.md`, fill in the "Layout experiment" table below, and decide D10. |
 
 ---
 
@@ -112,7 +112,26 @@ reported.
 4. **`tools/` and `.venv/` are git-ignored.** `scripts/epubcheck.sh` downloads EPUBCheck
    into `tools/` on first use (needs Java). Kindle Previewer cannot be scripted in.
 
-**The embedded commentary font — found, rounds 2–7 (2026-09-11).**
+**The real cause — found 2026-09-19 by decoding the converted KPF.** Kindle Previewer
+takes the first family of the `font-family` stack that covers the most text, makes it the
+book's default font, and rewrites every style naming it to `default`. On the device the
+reader's font menu replaces `default`. The commentary has ~3× the verses' text, so the
+Rashi font was promoted in *every* build (checked back to the 2026-09-12 KPF), and the
+commentary fell to the Kindle's own Hebrew font unless Publisher Font was in effect. Round
+8's "two embedded families" diagnosis was wrong; that change stays but fixed nothing.
+
+*Fix:* each commentary paragraph's stack is `"Rashi Part N", "Noto Rashi Hebrew", serif`,
+where the placeholder names don't exist and the parts are dealt so each carries at most
+half the verse text (`CommentaryParts` in `rendering/css.py`). The decoded KPF now shows
+Taamey Frank as the default and all commentary styles naming Noto Rashi explicitly. Two
+things tried first and ruled out: moving the font to the entry `<div>` (still promoted) and
+aliasing the same font file under several names (the converter merges them by file).
+*Limit:* paragraphs are not split, so a build smaller than a chapter can fail — the
+ten-verse POC does, because Rashi on 1:1 alone outweighs its ten verses. `build` warns.
+*Consequence for reading:* the verses now follow the reader's font choice (Taamey Frank
+under Publisher Font); the Rashi is always Rashi script.
+
+**The embedded commentary font — rounds 2–7 (2026-09-11). Superseded by the note above.**
 
 **Cause: a `font-family` stack naming two embedded families.** The Paperwhite honours
 `"Noto Rashi Hebrew", serif` and does not honour
@@ -345,7 +364,8 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
-| 2026-09-19 (2) | 1 | Layout experiment (D10), at the human's request. Layout profiles in the config: `typography` gains line heights, and new `spacing` and `breaks` sections are overridden per profile. One renderer. The divider now has a single top rule in every build. New `experiment-layout` command builds A-current, B-balanced, C-dense and D-dense-break-aware from one load of the content, checks that only the stylesheet, title and identifier differ, and prints each variant's parameters and sizes. `build --layout-profile` added. Line heights checked against HarfBuzz-measured mark extents. 226 tests pass, ruff clean. Kindle Previewer 4 converts all four with 0 errors. EPUBCheck not run (no Java). | **(human)** sideload the four variants; answer the font question; fill in the layout table; decide D10. | 1. Which layout? 2. Do the page-break hints in D visibly change anything? 3. Amend SPEC §16 (one embedded family per stack)? |
+| 2026-09-19 (3) | 1 | Layout experiment (D10), at the human's request. Layout profiles in the config: `typography` gains line heights, and new `spacing` and `breaks` sections are overridden per profile. One renderer. The divider now has a single top rule in every build. New `experiment-layout` command builds A-current, B-balanced, C-dense and D-dense-break-aware from one load of the content, checks that only the stylesheet, title and identifier differ, and prints each variant's parameters and sizes. `build --layout-profile` added. Line heights checked against HarfBuzz-measured mark extents. 226 tests pass, ruff clean. Kindle Previewer 4 converts all four with 0 errors. EPUBCheck not run (no Java). | **(human)** sideload the four variants; answer the font question; fill in the layout table; decide D10. | 1. Which layout? 2. Do the page-break hints in D visibly change anything? 3. Amend SPEC §16 (one embedded family per stack)? |
+| 2026-09-19 (2) | 1 | Decoded the Kindle Previewer KPF: the converter promotes the most-used font to the book default, which the reader's font replaces — the Rashi font got that slot in every build. Commentary now dealt over placeholder font names (`CommentaryParts`) so the biblical font is the default and Rashi is named explicitly; verified in the decoded KPF. 168 tests pass, ruff clean; EPUBCheck not run (no Java on this Mac). | **(human)** sideload `output/Genesis_Chapter_1.kpf`, check under Publisher Font and one other font. | 1. Rashi script in both? 2. OK that verses follow the reader's font choice outside Publisher Font? |
 | 2026-09-19 | 1 | Reconciled with the abandoned `expandable-rashi-details` branch. D9 closed: `<details>` and popup both fail on the device because a tap turns the page; commentary stays inline, stated in SPEC §2. Re-applied the branch's entry-id fix (book slug, not lower-cased title) with a regression test for `I Samuel`. 163 tests pass, ruff clean. | **(human)** unchanged: confirm Rashi script on the device. Delete the remote branch if wanted. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 (one embedded family per stack)? |
 | 2026-09-11 (8) | 1 | **Cause found.** Round 7's two-paragraph diagnostic applies a second embedded font correctly on the device. Its rule names one embedded family plus a generic; `.commentary-text` named two — the only such rule in the stylesheet, and the only one that failed. `render_css` now emits one embedded family per stack followed by a generic, with two tests holding it there. Contradicts SPEC §16, which §0 settles in the device's favour. Rebuilt: EPUBCheck 0/0, 163 tests pass. | **(human)** confirm on the device that the commentary is now Rashi script; then D2/D3/D4 and the Phase 1 device table can all be closed. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 to "one embedded family per stack, then a generic"? 3. D9, the expandable commentary, is still parked — say when. |
 | 2026-09-11 (7) | 1 | Round 6 produced the fact that reframes the whole hunt: Hebrew rendered in an embedded font while Bookerly was selected and "Publisher Font" was not offered. Bookerly has no Hebrew, so the device was falling back to an embedded font to draw the script at all — font choice for Hebrew looks like its fallback logic, not our CSS, which would explain every earlier result (Rashi appeared exactly when Rashi was the `body` font). Cut the diagnostic down from ten mechanisms to two pages of two paragraphs and one yes/no question each, because the per-line format is what let round 4's flaw hide. EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/Font_Diagnostic.epub`; report per page whether the two paragraphs look the same or different. | Same on both pages means one font for all Hebrew: D3 becomes `rashi_script: false`, SPEC §15's two-font premise needs rewording, and the unused Rashi font should stop being embedded rather than sit there as a second fallback candidate. |
