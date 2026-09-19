@@ -27,7 +27,7 @@ def test_build_chapter_produces_an_epub(tmp_path: Path, capsys) -> None:
 def test_build_reports_the_versions_it_used(tmp_path: Path, capsys) -> None:
     main(["build", "--chapter", "Genesis", "1", "--output", str(tmp_path / "g.epub")])
     out = capsys.readouterr().out
-    assert "text version       Genesis:" in out
+    assert "text version       Miqra according to the Masorah (1 book)" in out
     assert "commentary version Rashi:" in out
 
 

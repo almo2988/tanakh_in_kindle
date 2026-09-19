@@ -8,11 +8,11 @@
 
 | | |
 |---|---|
-| **Current phase** | 2 — Sefaria provider |
-| **Status** | Claude-side work is done. Full Genesis (50 chapters, 1,533 verses, 2,016 Rashi entries) is fetched from Sefaria, validated clean and built: EPUBCheck 0 errors and 0 warnings, Kindle Previewer 0 errors and 0 quality issues, largest chapter file 73 KB. `output/Genesis.epub` uses the C-dense layout. |
-| **Blocked on** | the Phase 2 human gate: choose D5 and D6, then test full Genesis on the device. |
+| **Current phase** | 3 — Full Tanakh build |
+| **Status** | Claude-side work is done. `output/Tanakh_with_Rashi.epub` is one 5.5 MB book: all 39 books, 929 chapters, 23,206 verses, 28,228 Rashi entries, vocalized throughout. `validate` is clean. EPUBCheck: 0 errors, 0 warnings. Kindle Previewer: 0 errors, 0 quality issues, no notices. |
+| **Blocked on** | the Phase 3 device test (human). |
 | **Last session** | 2026-09-19 |
-| **Next action** | **(human)** 1. Read `docs/VERSION_SELECTION.md` and confirm or change D5 (recommended: keep MAM) and D6 (recommended for Genesis: keep Rosenbaum & Silbermann). 2. Run `python -m tanakh_epub build --book Genesis`, send `output/Genesis.epub` with Send to Kindle, and check: א׳:א׳ (long Rashi), א׳:ג׳ (no Rashi), "Go to" across chapters, ח׳:י״ז (כתיב/קרי in brackets), and the `…` in Rashi's opening words on כ״ה:כ״ז. |
+| **Next action** | **(human)** Run `python -m tanakh_epub build`, send `output/Tanakh_with_Rashi.epub` with Send to Kindle, fill in the Phase 3 device table below, and do the spot checks. It includes the Genesis checks waived at the end of Phase 2. |
 
 ---
 
@@ -274,10 +274,10 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 - [x] `pytest` green: 268 passed, 5 network tests skipped; with `RUN_NETWORK_TESTS=1` all 6 network tests pass
 
 **Human gate (human)**
-- [ ] D5 Tanakh version and D6 Rashi version chosen from `docs/VERSION_SELECTION.md`, recorded in config + Decisions
-- [ ] Full Genesis on the Paperwhite via the frozen delivery path — quick check of a long-Rashi verse (א׳:א׳), a verse without Rashi, and chapter navigation
+- [x] D5 Tanakh version and D6 Rashi version chosen from `docs/VERSION_SELECTION.md`, recorded in config + Decisions — "continue with same versions", and vocalized Rashi for the Prophets and Writings (2026-09-19)
+- [ ] ~~Full Genesis on the Paperwhite via the frozen delivery path~~ — **waived by the human** on 2026-09-19 ("Do Phase 3"). The same checks (א׳:א׳, a verse without Rashi, chapter navigation) are part of the Phase 3 device test.
 
-**Status:** code complete 2026-09-19 — awaiting the human gate.
+**Status:** done 2026-09-19. The human waived the Genesis device check and moved to Phase 3.
 
 **Notes:**
 
@@ -315,22 +315,22 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 **Goal:** `Tanakh_with_Rashi.epub` — all 39 books, valid, complete, attributed.
 
 **Tasks**
-- [ ] 3.1 `fetch` all 39 books and every available Rashi index; log books without Rashi
-- [ ] 3.2 `inventory-markup` over the full dataset; extend rules until 0 unknown
-- [ ] 3.3 Chunking size guard (`layout.max_file_kb`) + split-at-study-unit fallback
-- [ ] 3.4 `layout.page_break_before_book`
-- [ ] 3.5 `epub/cover.py` — generated black-and-white cover, `properties="cover-image"`
-- [ ] 3.6 `epub/manifest.py` — `build_manifest.json` (output + embedded), `SOURCES_AND_LICENSES.md`
-- [ ] 3.7 `sources.xhtml` (מקורות) — full Hebrew attribution: versions, licenses, fonts, build date
-- [ ] 3.8 Landmarks nav; stable `dc:identifier` (`--new-identifier` flag)
-- [ ] 3.9 Optional `include_sections` as flat entries (default off)
-- [ ] 3.10 Tests: chunking, manifest, sources page present, full-nav completeness
+- [x] 3.1 `fetch` all 39 books and every available Rashi index; log books without Rashi (none: all 39 have Rashi)
+- [x] 3.2 `inventory-markup` over the full dataset; extend rules until 0 unknown
+- [x] 3.3 Chunking size guard (`layout.max_file_kb`) + split-at-study-unit fallback
+- [x] 3.4 `layout.page_break_before_book` (already in place since Phase 1; on)
+- [x] 3.5 `epub/cover.py` — generated black-and-white cover, `properties="cover-image"`
+- [x] 3.6 `epub/manifest.py` — `build_manifest.json` (output + embedded), `SOURCES_AND_LICENSES.md`
+- [x] 3.7 `sources.xhtml` (מקורות) — full Hebrew attribution: versions, licenses, fonts, build date
+- [x] 3.8 Landmarks nav; stable `dc:identifier` (`--new-identifier` flag)
+- [x] 3.9 Optional `include_sections` as flat entries (default off; already in place since Phase 1)
+- [x] 3.10 Tests: chunking, manifest, sources page present, full-nav completeness
 
 **Exit criteria**
-- [ ] Full build passes EPUBCheck (0 errors) and Kindle Previewer (0 errors)
-- [ ] Validation report: all books / chapters / verses present; 0 empty verses; 0 unknown markup; books-without-Rashi listed
-- [ ] No chapter file over 300 KB
-- [ ] Full test suite green
+- [x] Full build passes EPUBCheck (0 errors, 0 warnings) and Kindle Previewer (0 errors, 0 quality issues)
+- [x] Validation report: 39/39 books, 929/929 chapters, 23,206/23,206 verses; 0 empty verses; 0 unknown markup; no book without Rashi
+- [x] No chapter file over 300 KB (largest 114 KB)
+- [x] Full test suite green: 293 passed, 6 network tests skipped (they pass with `RUN_NETWORK_TESTS=1`); ruff clean
 
 **Human gate (human)**
 - [ ] Full book on the Paperwhite; checklist below filled
@@ -350,9 +350,47 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 | Books without Rashi render verses only | |
 | מקורות page renders in Hebrew | |
 | Font scaling proportional at smallest and largest sizes | |
+| Genesis (waived in Phase 2): א׳:א׳ long Rashi, א׳:ג׳ no Rashi, ח׳:י״ז כתיב/קרי in brackets | |
+| Scribal marks: ׆ at במדבר י׳:ל״ה, the small נ in שופטים י״ח:ל׳, `…` in Rashi on בראשית כ״ה:כ״ז | |
+| Rashi vowel points in נביאים/כתובים (e.g. ישעיהו א׳:א׳) | |
 
-**Status:** not started
+**Status:** code complete 2026-09-19 — awaiting the human gate.
+
 **Notes:**
+
+1. **One book.** `python -m tanakh_epub build` with no selection builds all 39 books into
+   `output/Tanakh_with_Rashi.epub` (5.5 MB; the KPF Kindle Previewer makes is 21 MB).
+   "Go to" lists the 39 books and, under each, its chapters: 971 entries.
+2. **Rashi versions per book (D6).** The config maps every book to exactly one version, and
+   the מקורות page lists each version with the books it covers. Seven versions in all; the
+   Sefaria vocalized edition's license is "unknown" and is stated as such. The same data
+   goes to `Tanakh_with_Rashi.SOURCES_AND_LICENSES.md`, which also warns not to
+   redistribute.
+3. **Five new markup patterns in the rest of the Tanakh:**
+   - the inverted nun ׆ (kept)
+   - the implicit maqaf (kept)
+   - the four suspended letters `<sup>`, such as מְנַשֶּׁה in Judges 18:30. These are
+     kept and set small. The spec's "drop `<sup>`" was written for footnote markers and
+     would have deleted letters here; raising them needs CSS outside SPEC §26.
+   - a line break inside a bold opening phrase (Rashi on Job 38:1:1), which becomes a space
+4. **Commentary counts are warnings, not failures.** Sefaria's index disagrees with the
+   chosen versions in 17 books, in both directions. For Jonah its own merge of all versions
+   has 53 entries and the index says 51, so the index is not an authority on this. The
+   Tanakh's chapter and verse counts still must match exactly, and do.
+5. **Characters the fonts lack:** `…`, `–` and `—` in the biblical font. They appear in
+   some Rashi opening words, and `—` is the whole of Joshua 21:36–37, which MAM omits. The
+   Kindle draws them from a fallback font. Invisible formatting characters no longer count.
+6. **Identifier:** now derived from the output name, layout profile and books, not from the
+   config hash. A rebuilt book with a changed font size or rule replaces the copy on the
+   Kindle instead of appearing beside it. `--new-identifier` stores a salt in
+   `data/processed/identity.json`.
+7. **Splitting:** a chapter file over 300 KB is split at study units into
+   `…-b.xhtml` and later parts, with the headings and anchor only in the first. No chapter
+   in the Tanakh needs it today (largest 114 KB); tests force it with a small limit.
+8. **New dependency:** Pillow, for the cover. Without a text-shaping library it lays out
+   left to right, so the cover code reverses the unpointed title itself and refuses
+   pointed text.
+
 
 ---
 
@@ -389,8 +427,8 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 | D2 | Biblical font (Taamey Frank CLM / Taamey David CLM / Ezra SIL) | **Taamey Frank CLM Medium 0.110** — ניקוד and טעמים stack correctly on the Paperwhite (human, 2026-09-19). | 2026-09-19 | `fonts.biblical`, `fonts/README.md`, `sources.xhtml` |
 | D3 | Rashi-script font + verified license, or `rashi_script: false` | **decided — Noto Rashi Hebrew Regular 1.007**, SIL OFL 1.1, `fsType 0`, static TTF. Genuine Rashi script. Covers every character in the Rashi fixture (asserted by `tests/test_fonts.py`). Round 1 on the device rejected the square placeholder, which is now removed from the repo. `rashi_script: true`. | 2026-09-11 | `fonts.rashi`, `typography.rashi_script`, `fonts/README.md` |
 | D4 | `rashi_scale` after legibility check | **0.86**, set by the C-dense profile (the base value stays 0.9). The human found it legible on the Paperwhite. | 2026-09-19 | `layout_profiles.dense.typography.rashi_scale` |
-| D5 | Sefaria Tanakh version (must include טעמים) | **open (human)** — comparison in `docs/VERSION_SELECTION.md`. Recommended: keep *Miqra according to the Masorah* (CC BY-SA), which is richer (large letters, real paragraph breaks, qamats qatan) and already device-tested. Alternative: *Tanach with Ta'amei Hamikra* (Public Domain). | 2026-09-19 | `sources.tanakh`, `tests/fixtures/genesis_1.json` |
-| D6 | Sefaria Rashi version | **open (human)** — for Genesis, recommended: keep *Rosenbaum & Silbermann 1929–1934* (Public Domain, vocalized). It covers only four Torah books, so Phase 3 needs a version per book; options in `docs/VERSION_SELECTION.md`. | 2026-09-19 | `sources.commentaries.Rashi`, `tests/fixtures/rashi_genesis_1.json` |
+| D5 | Sefaria Tanakh version (must include טעמים) | **Miqra according to the Masorah** (CC BY-SA), for all 39 books. | 2026-09-19 | `sources.tanakh`, `tests/fixtures/genesis_1.json` |
+| D6 | Sefaria Rashi version | **Vocalized throughout, one version per book:** Rosenbaum & Silbermann for the Torah (Numbers under its "corrected vocalization" title), Metsudah for Joshua, Kings and the five Megillot, and the Sefaria vocalized edition (license "unknown") for the other 26. The human chose the vowel points over a clear license for those 26. | 2026-09-19 | `sources.commentaries.Rashi`, `tests/fixtures/rashi_genesis_1.json` |
 | D7 | Sefaria index titles in `books.yaml` verified via API | **decided** — all 39 titles match Sefaria index titles exactly, and each has a `Rashi on <book>` index (checked against the Sefaria-Export index) | 2026-09-19 | `config/books.yaml` |
 | D8 | EPUB writer: hand-rolled (zipfile + Jinja2) vs `ebooklib` | **hand-rolled** — SPEC §32 admits `ebooklib` only if its output passes EPUBCheck *and* Kindle Previewer unmodified. Every file that matters here (OPF spine with `page-progression-direction`, the NCX kept beside the nav document, exact font media types) is one Kindle quirk away from needing a hand edit, and `zipfile` gives that control in ~100 lines. Passing EPUBCheck with 0 errors/0 warnings. | 2026-09-11 | `epub/builder.py` docstring |
 | D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **inline.** `<details>` and the noteref popup were both built and tested on the Paperwhite; a tap turns the page, so neither can work. | 2026-09-19 | `SPEC.md` §2, PROGRESS Phase 1 notes |
@@ -402,6 +440,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-19 (6) | 2 → 3 | The human confirmed D5 and D6, waived the Genesis device check, and asked for Phase 3 as one book. Per-book Rashi versions (vocalized throughout, 7 versions). Fetched all 39 books (229 requests, all from the export). Five new markup rules, with suspended letters kept rather than dropped. `validate` over the whole Tanakh is clean. Added chapter splitting, a generated cover, the embedded build manifest, `SOURCES_AND_LICENSES.md`, a per-version sources page, and a stable identifier with `--new-identifier`. `Tanakh_with_Rashi.epub`: EPUBCheck 0/0, Kindle Previewer 0 errors, 0 quality issues. 293 tests pass, ruff clean. | **(human)** Phase 3 device test. | 1. Cover in the library? 2. "Go to" over 39 books? 3. The spot checks in the table. |
 | 2026-09-19 (5) | 1 → 2 | Closed Phase 1 on the human's device report: D1 Send to Kindle, D2 Taamey Frank, D4 0.86 via C-dense, D10 C-dense, font fix confirmed. EPUBCheck now runs with Kindle Previewer's bundled Java; the three layout variants passed 0/0. Phase 2 done Claude-side: Sefaria provider (export bucket first, API fallback, polite retries), cache, `fetch`, `inventory-markup`, `validate` (index counts, NFC, alignment, font coverage, file sizes), six markup rules, D7 verified, `docs/VERSION_SELECTION.md`. Full Genesis: validate clean, EPUBCheck 0/0, Kindle Previewer 0 errors. 268 tests pass, plus 6 network tests; ruff clean. | **(human)** decide D5/D6, then test full Genesis on the Paperwhite. | 1. Keep MAM (D5)? 2. Keep Rosenbaum & Silbermann for Genesis (D6)? 3. On the device: כתיב/קרי at ח׳:י״ז, the `…` at כ״ה:כ״ז, and "Go to" over 50 chapters. |
 | 2026-09-19 (4) | 1 | Removed layout variant D-dense-break-aware at the human's request: it was rejected. The experiment now builds A-current, B-balanced and C-dense. The `breaks` switches remain in the config, all off, with a test that they still emit correctly if turned on. 221 tests pass, ruff clean. | **(human)** sideload the three variants and decide D10. | Which of A, B, C? |
 | 2026-09-19 (3) | 1 | Layout experiment (D10), at the human's request. Layout profiles in the config: `typography` gains line heights, and new `spacing` and `breaks` sections are overridden per profile. One renderer. The divider now has a single top rule in every build. New `experiment-layout` command builds A-current, B-balanced, C-dense and D-dense-break-aware from one load of the content, checks that only the stylesheet, title and identifier differ, and prints each variant's parameters and sizes. `build --layout-profile` added. Line heights checked against HarfBuzz-measured mark extents. 226 tests pass, ruff clean. Kindle Previewer 4 converts all four with 0 errors. EPUBCheck not run (no Java). | **(human)** sideload the four variants; answer the font question; fill in the layout table; decide D10. | 1. Which layout? 2. Do the page-break hints in D visibly change anything? 3. Amend SPEC §16 (one embedded family per stack)? |

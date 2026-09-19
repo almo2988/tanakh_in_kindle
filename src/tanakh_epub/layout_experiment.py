@@ -31,11 +31,16 @@ from .models import Chapter
 from .processing.study_units import stats
 
 PER_VARIANT_FILES = frozenset(
-    {f"{OEBPS}/styles/main.css", f"{OEBPS}/content.opf", f"{OEBPS}/toc.ncx"}
+    {
+        f"{OEBPS}/styles/main.css",
+        f"{OEBPS}/content.opf",
+        f"{OEBPS}/toc.ncx",
+        f"{OEBPS}/build_manifest.json",
+    }
 )
-"""The only files allowed to differ between variants: the stylesheet, and the two files
-that carry the title and identifier. Every chapter, the nav document, the sources page
-and both fonts must be byte-for-byte the same."""
+"""The only files allowed to differ between variants: the stylesheet, and the three files
+that carry the title, identifier and layout profile. Every chapter, the nav document, the
+sources page and both fonts must be byte-for-byte the same."""
 
 
 @dataclass(frozen=True)
@@ -67,7 +72,7 @@ def build_variants(
     books: BookTable,
     chapters: list[Chapter],
     text_versions: dict[str, str],
-    commentary_versions: dict[str, str],
+    commentary_versions: dict[str, dict[str, str]],
     output_dir: Path,
     build_date: datetime,
 ) -> list[Variant]:

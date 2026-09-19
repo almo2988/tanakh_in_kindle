@@ -11,6 +11,8 @@ dependencies = [
     # Reads the embedded fonts' cmap, so `validate` can prove each font covers every
     # character it will draw — a missing glyph otherwise shows up only on the device.
     "fonttools>=4.50",
+    # Draws the generated cover (SPEC §29).
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]

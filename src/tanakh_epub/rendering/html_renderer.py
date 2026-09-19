@@ -61,10 +61,33 @@ class RenderedChapter:
     anchor: str
     title: str
     xhtml: str
+    part: str = ""
+    """``""`` for a chapter's only or first file; ``"-b"``, ``"-c"``… for the rest of a
+    chapter split for size (SPEC.md §11). Only the first part is in the navigation."""
+
+    @property
+    def is_continuation(self) -> bool:
+        return bool(self.part)
 
     @property
     def size_bytes(self) -> int:
         return len(self.xhtml.encode("utf-8"))
+
+
+def _split_evenly(units: list, count: int) -> list[list]:
+    """``count`` contiguous groups whose sizes differ by at most one unit."""
+    size, extra = divmod(len(units), count)
+    groups, start = [], 0
+    for index in range(count):
+        end = start + size + (1 if index < extra else 0)
+        groups.append(units[start:end])
+        start = end
+    return groups
+
+
+def _part_suffix(index: int) -> str:
+    """``""`` for the first file, then ``-b``, ``-c``… (SPEC.md §11)."""
+    return "" if index == 0 else f"-{chr(ord('a') + index)}"
 
 
 def entry_id(slug: str, book: BookInfo, entry: CommentaryEntry) -> str:
@@ -124,10 +147,16 @@ class ChapterRenderer:
         self.env = environment or build_environment()
 
     def render(
-        self, chapter: Chapter, *, book_start: bool, parts: CommentaryParts | None = None
+        self,
+        chapter: Chapter,
+        *,
+        book_start: bool,
+        parts: CommentaryParts | None = None,
+        part: str = "",
     ) -> RenderedChapter:
         """`parts` is planned over the whole book by `render_all`; a chapter rendered on its
-        own gets a plan of its own."""
+        own gets a plan of its own. ``part`` renders a continuation file of a split
+        chapter: no headings, and no chapter anchor, which stays in the first file."""
         parts = parts or CommentaryParts.plan([chapter], self.config)
         book = self.books.by_title(chapter.book)
         label = chapter_label(chapter.number)
@@ -138,18 +167,46 @@ class ChapterRenderer:
             book_hebrew_title=book.hebrew_title,
             chapter_label=label,
             chapter_anchor=book.chapter_anchor(chapter.number),
-            book_start=book_start,
+            book_start=book_start and not part,
+            continuation=bool(part),
             units=[_unit_context(unit, book, self.config, parts) for unit in chapter.study_units],
         )
 
         return RenderedChapter(
             book=book,
             chapter=chapter.number,
-            filename=book.chapter_filename(chapter.number),
+            filename=book.chapter_filename(chapter.number, part),
             anchor=book.chapter_anchor(chapter.number),
             title=title,
             xhtml=xhtml,
+            part=part,
         )
+
+    def render_split(
+        self, chapter: Chapter, *, book_start: bool, parts: CommentaryParts
+    ) -> list[RenderedChapter]:
+        """The chapter as one file, or — if that file is over ``layout.max_file_kb`` — as
+        the fewest files that each fit, split at study-unit boundaries (SPEC.md §11). The
+        first file keeps the headings and the chapter anchor."""
+        whole = self.render(chapter, book_start=book_start, parts=parts)
+        limit = self.config.layout.max_file_kb * 1024
+        units = chapter.study_units
+        if whole.size_bytes <= limit or len(units) < 2:
+            return [whole]
+        for count in range(2, len(units) + 1):
+            groups = _split_evenly(units, count)
+            files = [
+                self.render(
+                    Chapter(book=chapter.book, number=chapter.number, study_units=group),
+                    book_start=book_start,
+                    parts=parts,
+                    part=_part_suffix(index),
+                )
+                for index, group in enumerate(groups)
+            ]
+            if all(f.size_bytes <= limit for f in files):
+                return files
+        return files
 
     def render_all(
         self, chapters: list[Chapter], parts: CommentaryParts | None = None
@@ -160,27 +217,61 @@ class ChapterRenderer:
         for chapter in chapters:
             first = chapter.book not in seen_books
             seen_books.add(chapter.book)
-            rendered.append(self.render(chapter, book_start=first, parts=parts))
+            rendered.extend(self.render_split(chapter, book_start=first, parts=parts))
         return rendered
 
-    def render_sources(self, *, build_date: datetime) -> str:
+    def render_sources(
+        self,
+        *,
+        build_date: datetime,
+        text_versions: dict[str, str] | None = None,
+        commentary_versions: dict[str, dict[str, str]] | None = None,
+    ) -> str:
+        """מקורות — SPEC_DATA_SOURCE.md §13, from the versions the build actually used.
+
+        A commentator with several versions (D6) gets one entry per version, each listing
+        the books it covers, in Tanakh order.
+        """
         config = self.config
         text_sources = [
             {
                 "label": "טקסט המקרא",
                 "version_title": config.tanakh_source.version_title,
                 "license": config.tanakh_source.license,
+                "books": "",
             }
         ]
         for name in config.commentaries:
-            source = config.commentary_sources[name]
-            text_sources.append(
-                {
-                    "label": f"פירוש {config.commentator(name).hebrew}",
-                    "version_title": source.version_title,
-                    "license": source.license,
-                }
-            )
+            label = f"פירוש {config.commentator(name).hebrew}"
+            used = (commentary_versions or {}).get(name)
+            if not used:
+                source = config.commentary_sources[name]
+                text_sources.append(
+                    {
+                        "label": label,
+                        "version_title": source.version_title,
+                        "license": source.license,
+                        "books": "",
+                    }
+                )
+                continue
+            groups: dict[str, list[str]] = {}
+            for book in self.books:
+                title = book.sefaria_title
+                if title in used:
+                    groups.setdefault(used[title], []).append(title)
+            for version, titles in groups.items():
+                source = config.commentary_source(name, titles[0])
+                text_sources.append(
+                    {
+                        "label": label,
+                        "version_title": version,
+                        "license": source.license,
+                        "books": ", ".join(self.books.by_title(t).hebrew_title for t in titles)
+                        if len(groups) > 1
+                        else "",
+                    }
+                )
 
         fonts = [
             {

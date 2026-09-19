@@ -17,24 +17,60 @@ include:
   commentaries: [Rashi]            # names as in config/commentators.yaml
 
 sources:
-  # Phase 1 builds from tests/fixtures/, which were captured from these exact versions.
-  # D5 and D6 freeze the versions for the real fetch in Phase 2; the values below are what
-  # the fixtures actually contain, so the sources page and build manifest stay truthful.
+  # `fetch` downloads exactly these versions; the build refuses a cached file in any other.
+  # The fixtures were captured from the Tanakh version and the Genesis Rashi version.
   tanakh:
     provider: sefaria
-    version_title: "Miqra according to the Masorah"   # PROVISIONAL (D5) — has טעמים
+    version_title: "Miqra according to the Masorah"   # D5 decided 2026-09-19 — has טעמים
     language: he
     license: "CC-BY-SA"
     source_url: "https://www.sefaria.org/Genesis"
     checked: 2026-09-11
   commentaries:
+    # D6, decided 2026-09-19: vocalized Rashi throughout. No single Hebrew version covers
+    # the Tanakh on Sefaria, so each version names the books it is used for; every book
+    # must appear exactly once. Titles are copied exactly from the Sefaria API — including
+    # the trailing space in the I Kings Metsudah title. docs/VERSION_SELECTION.md has the
+    # survey this came from.
     Rashi:
       provider: sefaria
-      version_title: "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934"  # PROVISIONAL (D6)
       language: he
-      license: "Public Domain"
-      source_url: "https://www.sefaria.org/Rashi_on_Genesis"
-      checked: 2026-09-11
+      checked: 2026-09-19
+      versions:
+        - version_title: "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934"
+          license: "Public Domain"
+          source_url: "https://www.nli.org.il/he/books/NNL_ALEPH001969084"
+          books: [Genesis, Exodus, Leviticus, Deuteronomy]
+        - version_title: "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann -- corrected vocalization"
+          license: "Public Domain"
+          source_url: "https://www.nli.org.il/he/books/NNL_ALEPH001969084"
+          books: [Numbers]          # the same edition; Sefaria files Numbers under this title
+        - version_title: "The Book of Joshua, Metsudah Publications, 1997"
+          license: "CC-BY"
+          source_url: "http://www.judaicaplace.com/search/brand/Metsudah-Publications/"
+          books: [Joshua]
+        - version_title: "The Metsudah Tanach series, Lakewood, N.J "
+          license: "CC-BY"
+          source_url: "https://www.judaicaplace.com/search/brand/Metsudah-Publications/"
+          books: [I Kings]
+        - version_title: "The Metsudah Tanach series, Lakewood, N.J"
+          license: "CC-BY"
+          source_url: "https://www.judaicaplace.com/search/brand/Metsudah-Publications/"
+          books: [II Kings]
+        - version_title: "The Metsudah Five Megillot, Lakewood, N.J., 2001"
+          license: "CC-BY"
+          source_url: "https://www.nli.org.il/he/books/NNL_ALEPH002162036"
+          books: [Song of Songs, Ruth, Lamentations, Ecclesiastes, Esther]
+        # Sefaria lists this edition's license as "unknown". Chosen by the human for the
+        # vowel points (D6); the מקורות page states the license exactly as Sefaria does.
+        # Fine for a personal copy — a reason not to redistribute the file.
+        - version_title: "Sefaria vocalized edition"
+          license: "unknown"
+          source_url: "https://www.sefaria.org"
+          books: [Judges, I Samuel, II Samuel, Isaiah, Jeremiah, Ezekiel, Hosea, Joel, Amos,
+                  Obadiah, Jonah, Micah, Nahum, Habakkuk, Zephaniah, Haggai, Zechariah,
+                  Malachi, Psalms, Proverbs, Job, Daniel, Ezra, Nehemiah, I Chronicles,
+                  II Chronicles]
 
 fonts:
   # Both licenses verified against the font's own name table (IDs 0/13) and the project
@@ -175,7 +211,7 @@ layout_profiles:
       rashi_paragraph: 0.12
 
 cover:
-  mode: none                     # none | generated | custom — generated cover lands in Phase 3 (3.5)
+  mode: generated                # none | generated | custom — SPEC §29
   path: null
 
 debug:

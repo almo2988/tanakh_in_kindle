@@ -53,6 +53,8 @@ def build_navigation(
 
     by_book: dict[str, list[RenderedChapter]] = {}
     for chapter in rendered:
+        if chapter.is_continuation:
+            continue  # the second file of a split chapter is reached by reading, not by TOC
         by_book.setdefault(chapter.book.sefaria_title, []).append(chapter)
 
     book_entries: list[NavEntry] = []

@@ -146,12 +146,13 @@ class LocalProvider:
         looked_in = "\n  ".join(str(p) for p in self._candidates(book, commentator))
         raise ProviderError(f"No local data for {label}. Looked in:\n  {looked_in}")
 
-    def _checked(self, dataset: _Dataset, key: str) -> _Dataset:
+    def _checked(self, dataset: _Dataset, key: str, book: str) -> _Dataset:
         """A dataset whose version differs from config is a miss, never a silent mix.
 
-        SPEC_DATA_SOURCE.md §11.
+        SPEC_DATA_SOURCE.md §11. ``expected_versions`` may name a version per book as
+        ``"Rashi:Isaiah"``; that wins over the commentator-wide ``"Rashi"``.
         """
-        expected = self.expected_versions.get(key)
+        expected = self.expected_versions.get(f"{key}:{book}") or self.expected_versions.get(key)
         if expected and dataset.source.version_title != expected:
             raise ProviderError(
                 f'{dataset.path.name} holds version "{dataset.source.version_title}" '
@@ -173,7 +174,7 @@ class LocalProvider:
         return found
 
     def get_book_text(self, book: str) -> list[list[str]]:
-        dataset = self._checked(self._dataset(book, None), "tanakh")
+        dataset = self._checked(self._dataset(book, None), "tanakh", book)
         if dataset.depth != 2:
             raise ProviderError(f"{dataset.path.name} has depth {dataset.depth}, expected 2")
         return dataset.padded()
@@ -191,7 +192,7 @@ class LocalProvider:
         return self._dataset(book, None).chapters_included
 
     def get_chapter_text(self, book: str, chapter: int) -> list[str]:
-        return self._checked(self._dataset(book, None), "tanakh").chapter(chapter)
+        return self._checked(self._dataset(book, None), "tanakh", book).chapter(chapter)
 
     # ---- CommentaryProvider ---------------------------------------------
 
@@ -203,7 +204,7 @@ class LocalProvider:
         return True
 
     def get_book_commentary(self, commentator: str, book: str) -> list[list[list[str]]]:
-        dataset = self._checked(self._dataset(book, commentator), commentator)
+        dataset = self._checked(self._dataset(book, commentator), commentator, book)
         if dataset.depth != 3:
             raise ProviderError(f"{dataset.path.name} has depth {dataset.depth}, expected 3")
         return dataset.padded()
@@ -212,4 +213,4 @@ class LocalProvider:
         return self._dataset(book, commentator).source
 
     def get_chapter_commentary(self, commentator: str, book: str, chapter: int) -> list[list[str]]:
-        return self._checked(self._dataset(book, commentator), commentator).chapter(chapter)
+        return self._checked(self._dataset(book, commentator), commentator, book).chapter(chapter)

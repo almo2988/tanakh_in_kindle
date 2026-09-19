@@ -64,7 +64,7 @@ def fetch_book(
             _fetch_one(
                 provider,
                 label=index_title,
-                version_title=config.commentary_sources[name].version_title,
+                version_title=config.commentary_source(name, book.sefaria_title).version_title,
                 path=cache_path(cache_dir, commentator.slug, book.slug),
                 kind="commentary",
                 depth=3,

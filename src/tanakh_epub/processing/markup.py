@@ -94,6 +94,21 @@ RULES: dict[tuple[str, str | None], Rule] = {
     ("span", "mam-kq-trivial"): Rule(
         "unwrap", note="a כתיב/קרי difference MAM prints as one vocalized word"
     ),
+    # Found in the full-Tanakh inventory (Phase 3):
+    ("span", "mam-spi-invnun"): Rule(
+        "unwrap", note="inverted nun ׆ around Numbers 10:35–36 and in Psalms 107; kept"
+    ),
+    ("span", "mam-implicit-maqaf"): Rule(
+        "unwrap", note="a maqaf MAM marks as implicit, in Psalms, Proverbs and Job; kept"
+    ),
+    # A bare <sup> is a suspended letter (אות תלויה): מְ<sup>נַ</sup>שֶּׁה in Judges 18:30,
+    # the ע of מיער in Psalms 80:14 and of רשעים in Job 38:13, 15. It is part of the text,
+    # so it is kept — SPEC_DATA_SOURCE §9.2's "drop <sup>" is about footnote markers, which
+    # carry a class here. Raising it would need vertical-align, which is not in the
+    # Kindle-safe CSS of SPEC §26, so it is set small, like the Masorah's small letters.
+    ("sup", None): Rule(
+        "wrap", tag="span", css_class="letter-small", note="suspended letter, set small"
+    ),
     # MAM's editorial notes on other manuscript traditions: an asterisk and a note in
     # parentheses, inside the verse. Dropped with their content — SPEC_DATA_SOURCE §9.2.
     ("sup", "footnote-marker"): Rule("drop", note="MAM footnote asterisk"),
@@ -202,11 +217,11 @@ class _Converter(HTMLParser):
 
         if rule.action == "paragraph":
             if self._container():
-                self._unknown(
-                    tag,
-                    None,
-                    extra="a paragraph break inside inline markup is not handled in Phase 1",
-                )
+                # A break inside bold or a span cannot end the paragraph without splitting
+                # the element. It only occurs once in the Tanakh — Rashi on Job 38:1:1, a
+                # dibur hamatchil set on two lines — and a space keeps the words apart.
+                self._append(Text(" "))
+                return
             self.nodes.append(Break())
             return
 

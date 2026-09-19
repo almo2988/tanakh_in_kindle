@@ -189,3 +189,36 @@ def test_an_italic_without_the_footnote_class_is_still_unknown() -> None:
     """`<i>` alone has not been seen yet; only MAM's footnote class has a rule."""
     with pytest.raises(UnknownMarkupError):
         convert_verse("<i>x</i>", reference=REF)
+
+
+# ---- Rules added from the Phase 3 inventory of the whole Tanakh ----------------------
+
+
+def test_inverted_nun_is_kept() -> None:
+    raw = '<span class="mam-spi-invnun">׆</span>&nbsp;וַיְהִ֛י'
+    assert convert_verse(raw, reference="Numbers 10:35") == "׆\u00a0וַיְהִ֛י"
+
+
+def test_implicit_maqaf_is_kept() -> None:
+    raw = 'אַ֥שְֽׁרֵי<span class="mam-implicit-maqaf">־</span>הָאִ֗ישׁ'
+    assert convert_verse(raw, reference="Psalms 1:1") == "אַ֥שְֽׁרֵי־הָאִ֗ישׁ"
+
+
+def test_suspended_letter_is_kept_not_dropped() -> None:
+    """Dropping it would delete a letter of the Tanakh (CLAUDE.md non-negotiable 4)."""
+    raw = "בֶּן־מְ<sup>נַ</sup>שֶּׁ֜ה"
+    assert convert_verse(raw, reference="Judges 18:30") == (
+        'בֶּן־מְ<span class="letter-small">נַ</span>שֶּׁ֜ה'
+    )
+
+
+def test_footnote_sup_is_still_dropped() -> None:
+    raw = 'א<sup class="footnote-marker">*</sup><i class="footnote">(ב)</i>'
+    assert convert_verse(raw, reference=REF) == "א"
+
+
+def test_a_break_inside_the_dibur_hamatchil_becomes_a_space() -> None:
+    raw = "<b>(מענה מן הסערה): <br>מִן הַסְּעָרָה:</b> מְנֵה שְׂעָרוֹת"
+    entry = convert_commentary_entry(raw, reference="Rashi on Job 38:1:1")
+    assert entry.dibur_hamatchil == "(מענה מן הסערה): מִן הַסְּעָרָה:"
+    assert entry.text == "מְנֵה שְׂעָרוֹת"

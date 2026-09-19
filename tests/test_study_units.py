@@ -20,7 +20,7 @@ def test_every_verse_carries_its_provider_and_version(genesis_chapter_1) -> None
         assert unit.verse.source_provider
         assert unit.verse.source_version == text_versions["Genesis"]
         for entry in unit.commentaries:
-            assert entry.source_version == commentary_versions["Rashi"]
+            assert entry.source_version == commentary_versions["Rashi"]["Genesis"]
 
 
 def test_commentary_follows_its_own_verse(genesis_chapter_1) -> None:

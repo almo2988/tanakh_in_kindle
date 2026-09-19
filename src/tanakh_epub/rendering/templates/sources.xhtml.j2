@@ -22,6 +22,9 @@
       <p class="source-label">{{ source.label }}</p>
       <p class="source-detail" dir="ltr" lang="en" xml:lang="en">{{ source.version_title }}</p>
       <p class="source-detail">רישיון: <span dir="ltr" lang="en" xml:lang="en">{{ source.license }}</span></p>
+{%- if source.books %}
+      <p class="source-detail">ספרים: {{ source.books }}</p>
+{%- endif %}
     </div>
 {%- endfor %}
 

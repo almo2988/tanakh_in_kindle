@@ -124,21 +124,22 @@ def test_commentary_on_a_verse_the_text_lacks_fails(tmp_path: Path, config, book
     assert any("1:40 has no verse" in p for p in report.problems)
 
 
-def test_fewer_entries_than_the_index_is_a_warning_not_a_failure(
-    tmp_path: Path, config, books
-) -> None:
-    """The commentary index counts every version together (Rashi on Genesis 21:2 exists
-    in the Metsudah version and not in Rosenbaum & Silbermann)."""
-    _write_cache(tmp_path, rashi_lengths=[1, 24, 56])
+@pytest.mark.parametrize("indexed", [56, 54])
+def test_an_entry_count_off_the_index_is_a_warning(tmp_path: Path, config, books, indexed) -> None:
+    """The commentary index counts every version together (Rashi on Genesis 21:2 is only in
+    Metsudah) and is sometimes stale (Rashi on Jonah: 53 in Sefaria's merge, 51 indexed)."""
+    _write_cache(tmp_path, rashi_lengths=[1, 24, indexed])
     report = validate_book(_local(tmp_path, books), config, books.by_title("Genesis"))
     assert report.ok
-    assert any("1 fewer entries" in w for w in report.warnings)
+    assert any(f"55 entries, the index counts {indexed}" in w for w in report.warnings)
 
 
-def test_more_entries_than_the_index_fails(tmp_path: Path, config, books) -> None:
-    _write_cache(tmp_path, rashi_lengths=[1, 24, 54])
+def test_invisible_characters_need_no_glyph(tmp_path: Path, config, books) -> None:
+    rashi = _fixture("rashi_genesis_1.json")["text"]
+    rashi[0][0][0] = rashi[0][0][0] + " \u202aא\u202c\u034f\u200d"
+    _write_cache(tmp_path, rashi=rashi)
     report = validate_book(_local(tmp_path, books), config, books.by_title("Genesis"))
-    assert not report.ok
+    assert report.missing_glyphs == []
 
 
 def test_nfc_decomposing_a_presentation_form_is_not_a_loss(tmp_path: Path, config, books) -> None:

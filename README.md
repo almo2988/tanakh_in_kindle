@@ -7,9 +7,9 @@ commentary, for reading on a **Kindle Paperwhite (12th gen, 2024)**. All content
 Reading content is **Hebrew only**. English appears in filenames, logs, config and the
 version identifiers the source licenses require you to name — never in the book itself.
 
-> **Status: Phase 2 (Sefaria provider).** Full בראשית with רש״י is fetched from Sefaria,
-> validated and built. The rest of the Tanakh is Phase 3. `PROGRESS.md` is the authority on
-> what is done and what is next.
+> **Status: Phase 3 (full Tanakh).** All 39 books with רש״י build into one EPUB,
+> `output/Tanakh_with_Rashi.epub`. What is left is the device test. `PROGRESS.md` is the
+> authority on what is done and what is next.
 
 ---
 
@@ -17,12 +17,18 @@ version identifiers the source licenses require you to name — never in the boo
 
 ```sh
 uv sync                       # or: python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-python -m tanakh_epub fetch --book Genesis        # whole books from Sefaria into data/cache/
-python -m tanakh_epub inventory-markup --book Genesis
-python -m tanakh_epub validate --book Genesis
-python -m tanakh_epub build --book Genesis        # → output/Genesis.epub
-python -m tanakh_epub check output/Genesis.epub
+python -m tanakh_epub fetch                       # all 39 books + Rashi into data/cache/ (~230 requests)
+python -m tanakh_epub inventory-markup            # must report 0 unknown patterns
+python -m tanakh_epub validate                    # counts, markup, NFC, glyphs, file sizes
+python -m tanakh_epub build                       # → output/Tanakh_with_Rashi.epub (~5.5 MB)
+python -m tanakh_epub check output/Tanakh_with_Rashi.epub
 ```
+
+Every command takes `--book Genesis` (or `--books …`) to work on part of the Tanakh.
+`build` also writes `Tanakh_with_Rashi.build_manifest.json` and
+`Tanakh_with_Rashi.SOURCES_AND_LICENSES.md` next to the book. The book keeps the same
+identifier from build to build, so sending a rebuilt copy replaces the old one on the
+Kindle; `build --new-identifier` makes it a new book instead.
 
 `fetch` is the only command that uses the network. It reads Sefaria's public export
 bucket, falls back to the API, and skips a book already cached in the configured version.
@@ -153,15 +159,18 @@ we are) → `SPEC.md` and `SPEC_DATA_SOURCE.md` (what to build).
 ## Content and licensing
 
 Texts come from Sefaria under the versions named in `config/default.yaml`, and the built
-EPUB reproduces those names and licenses on its מקורות page. Currently:
+EPUB reproduces those names and licenses on its מקורות page:
 
-| | Version | License |
-|---|---|---|
-| Tanakh | *Miqra according to the Masorah* | CC BY-SA |
-| Rashi | *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929–1934* | Public Domain |
+| | Version | License | Books |
+|---|---|---|---|
+| Tanakh | *Miqra according to the Masorah* | CC BY-SA | all 39 |
+| Rashi | *Rosenbaum & Silbermann, 1929–1934* (Numbers: *corrected vocalization*) | Public Domain | Torah |
+| Rashi | Metsudah editions | CC BY | Joshua, Kings, the five Megillot |
+| Rashi | *Sefaria vocalized edition* | **unknown** (as Sefaria lists it) | the other 26 books |
 
-Both are awaiting confirmation (decisions D5 and D6 in `PROGRESS.md`); the candidates are
-compared in `docs/VERSION_SELECTION.md`.
+The last license is not recorded by Sefaria, so the book is for personal reading: do not
+redistribute it without clearing that with Sefaria. Why each version was chosen is in
+`docs/VERSION_SELECTION.md`.
 
 Two fonts are embedded, each with its license read and recorded in `fonts/README.md`:
 **Taamey Frank CLM** for the biblical text (GPL-2.0 with the Culmus font-embedding

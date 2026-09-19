@@ -18,6 +18,8 @@ from . import __version__
 from .books import BookTable, load_books
 from .config import Config, load_config
 from .epub.builder import EpubBuilder
+from .epub.manifest import manifest_json, sources_and_licenses
+from .epub.metadata import identifier_salt, new_identifier_salt
 from .layout_experiment import build_variants, content_differences, format_report
 from .paths import CACHE_DIR, PROJECT_ROOT
 from .processing.inventory import Inventory, format_inventory, scan
@@ -50,6 +52,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     build.add_argument("--no-commentary", action="store_true", help="verses only")
     build.add_argument("--output", type=Path, default=None, help="output .epub path")
+    build.add_argument(
+        "--new-identifier",
+        action="store_true",
+        help="give this output a new dc:identifier from now on, so the Kindle treats it as a "
+        "new book rather than an update of the old one",
+    )
     _add_kpf_argument(build)
 
     experiment = subparsers.add_parser(
@@ -167,11 +175,13 @@ def _selections(args, config: Config, books: BookTable) -> tuple[list[ChapterSel
     )
 
 
-def _expected_versions(config: Config) -> dict[str, str]:
-    return {
-        "tanakh": config.tanakh_source.version_title,
-        **{name: source.version_title for name, source in config.commentary_sources.items()},
-    }
+def _expected_versions(config: Config, books: BookTable) -> dict[str, str]:
+    expected = {"tanakh": config.tanakh_source.version_title}
+    for name in config.commentaries:
+        for book in books:
+            title = book.sefaria_title
+            expected[f"{name}:{title}"] = config.commentary_source(name, title).version_title
+    return expected
 
 
 def _titles(args, books: BookTable) -> list[str]:
@@ -184,7 +194,7 @@ def _titles(args, books: BookTable) -> list[str]:
 def _load_content(args, config: Config, books: BookTable):
     """The requested chapters as the internal model, or ``None`` if there is no local
     data for any of them."""
-    provider = LocalProvider(books=books, expected_versions=_expected_versions(config))
+    provider = LocalProvider(books=books, expected_versions=_expected_versions(config, books))
 
     selections, default_name = _selections(args, config, books)
     available = set(provider.get_books())
@@ -232,6 +242,7 @@ def cmd_build(args) -> int:
         return 1
     chapters, text_versions, commentary_versions, default_name = content
     output = args.output or (config.output_dir / default_name)
+    salt = new_identifier_salt(output.name) if args.new_identifier else identifier_salt(output.name)
 
     result = EpubBuilder(config, books).build(
         chapters,
@@ -239,7 +250,14 @@ def cmd_build(args) -> int:
         text_versions=text_versions,
         commentary_versions=commentary_versions,
         build_date=datetime.now(UTC),
+        identifier_salt=salt,
     )
+    # SPEC_DATA_SOURCE §14–§15: the manifest and license report sit next to the book.
+    stem = output.with_suffix("")
+    manifest_path = stem.parent / f"{stem.name}.build_manifest.json"
+    licenses_path = stem.parent / f"{stem.name}.SOURCES_AND_LICENSES.md"
+    manifest_path.write_text(manifest_json(result.manifest), encoding="utf-8")
+    licenses_path.write_text(sources_and_licenses(config, books, result.manifest), encoding="utf-8")
 
     counts = stats(chapters)
     print(f"Built {_shown(result.path)}")
@@ -253,10 +271,14 @@ def cmd_build(args) -> int:
         f"{counts.verses_without_commentary} without)"
     )
     print(f"  size               {result.total_bytes / 1024:.0f} KB")
-    for book, version in sorted(text_versions.items()):
-        print(f"  text version       {book}: {version}")
-    for name, version in sorted(commentary_versions.items()):
-        print(f"  commentary version {name}: {version}")
+    print(f"  manifest           {_shown(manifest_path)}")
+    print(f"  licenses           {_shown(licenses_path)}")
+    for version in dict.fromkeys(text_versions.values()):
+        count = sum(1 for v in text_versions.values() if v == version)
+        print(f"  text version       {version} ({count} book{'s' if count > 1 else ''})")
+    for name, by_book in sorted(commentary_versions.items()):
+        for version in dict.fromkeys(by_book.values()):
+            print(f"  commentary version {name}: {version}")
 
     if not result.rashi_font_protected:
         print(
@@ -390,7 +412,9 @@ def cmd_fetch(args) -> int:
 def _cached_titles(args, config: Config, books: BookTable, cache_dir: Path):
     """The selected books that are in the cache — a validate or inventory over fixtures
     would describe the fixtures, not the data a build will use."""
-    provider = LocalProvider([cache_dir], books=books, expected_versions=_expected_versions(config))
+    provider = LocalProvider(
+        [cache_dir], books=books, expected_versions=_expected_versions(config, books)
+    )
     wanted = _titles(args, books)
     have = set(provider.get_books())
     missing = [t for t in wanted if t not in have]

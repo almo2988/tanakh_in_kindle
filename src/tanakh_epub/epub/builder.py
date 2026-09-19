@@ -23,6 +23,8 @@ from ..config import Config
 from ..models import Chapter
 from ..rendering.css import CommentaryParts, epub_font_href, font_media_type, render_css
 from ..rendering.html_renderer import ChapterRenderer, RenderedChapter, build_environment
+from .cover import load_cover
+from .manifest import build_manifest, manifest_json
 from .metadata import build_metadata
 from .navigation import build_navigation, render_nav, render_ncx
 
@@ -32,6 +34,8 @@ META_PREFIX = "tanakh: https://github.com/almo2988/tanakh_in_kindle/ns#"
 outside the reserved vocabularies to be declared on the package element."""
 OEBPS = "OEBPS"
 SOURCES_FILENAME = "sources.xhtml"
+MANIFEST_FILENAME = "build_manifest.json"
+COVER_ID = "cover-image"
 
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 """A fixed timestamp, so two builds of the same content produce identical bytes."""
@@ -55,6 +59,8 @@ class BuildResult:
     rashi_font_protected: bool = True
     """False if Kindle's converter may still make the Rashi font the book's default font
     (see `CommentaryParts`); only a build of a few verses can hit it."""
+    manifest: dict = field(default_factory=dict)
+    """The build manifest also embedded as ``OEBPS/build_manifest.json``."""
 
     @property
     def total_bytes(self) -> int:
@@ -74,8 +80,9 @@ class EpubBuilder:
         *,
         output: Path,
         text_versions: dict[str, str],
-        commentary_versions: dict[str, str],
+        commentary_versions: dict[str, dict[str, str]],
         build_date: datetime | None = None,
+        identifier_salt: str = "",
     ) -> BuildResult:
         if not chapters:
             raise ValueError("Nothing to build: no chapters were selected")
@@ -83,7 +90,11 @@ class EpubBuilder:
         build_date = build_date or datetime.now(UTC)
         parts = CommentaryParts.plan(chapters, self.config)
         rendered = self.renderer.render_all(chapters, parts)
-        sources_xhtml = self.renderer.render_sources(build_date=build_date)
+        sources_xhtml = self.renderer.render_sources(
+            build_date=build_date,
+            text_versions=text_versions,
+            commentary_versions=commentary_versions,
+        )
         css = render_css(self.config, commentary_parts=parts.count)
 
         navigation = build_navigation(
@@ -95,6 +106,17 @@ class EpubBuilder:
             text_versions=text_versions,
             commentary_versions=commentary_versions,
             modified=build_date,
+            identifier_salt=identifier_salt,
+        )
+        cover = load_cover(self.config)
+        manifest_data = build_manifest(
+            self.config,
+            self.books,
+            book_titles=sorted({c.book for c in chapters}),
+            text_versions=text_versions,
+            commentary_versions=commentary_versions,
+            identifier=metadata.identifier,
+            build_date=build_date.astimezone(UTC),
         )
 
         nav_xhtml = render_nav(self.env, navigation)
@@ -103,6 +125,13 @@ class EpubBuilder:
         )
 
         manifest, spine = self._manifest_and_spine(rendered)
+        if cover:
+            manifest.append(
+                ManifestItem(
+                    COVER_ID, f"images/cover.{cover.extension}", cover.media_type, "cover-image"
+                )
+            )
+        manifest.append(ManifestItem("build-manifest", MANIFEST_FILENAME, "application/json"))
         opf = self.env.get_template("content.opf.j2").render(
             meta_prefix=META_PREFIX,
             identifier=metadata.identifier,
@@ -112,7 +141,7 @@ class EpubBuilder:
             modified=metadata.modified,
             rights_statements=list(metadata.rights_statements),
             custom_meta=list(metadata.custom_meta),
-            cover_id=None,
+            cover_id=COVER_ID if cover else None,
             manifest=[vars(item) for item in manifest],
             spine=spine,
         )
@@ -129,6 +158,9 @@ class EpubBuilder:
             for chapter in rendered:
                 self._write(archive, f"{OEBPS}/text/{chapter.filename}", chapter.xhtml)
             self._write(archive, f"{OEBPS}/text/{SOURCES_FILENAME}", sources_xhtml)
+            if cover:
+                self._write_bytes(archive, f"{OEBPS}/images/cover.{cover.extension}", cover.data)
+            self._write(archive, f"{OEBPS}/{MANIFEST_FILENAME}", manifest_json(manifest_data))
             for role, font in (
                 ("biblical", self.config.biblical_font),
                 ("rashi", self.config.rashi_font),
@@ -146,6 +178,7 @@ class EpubBuilder:
             identifier=metadata.identifier,
             oversized=[c for c in rendered if c.size_bytes > limit],
             rashi_font_protected=parts.protects_rashi_font,
+            manifest=manifest_data,
         )
 
     # ---- manifest --------------------------------------------------------
@@ -161,7 +194,7 @@ class EpubBuilder:
         spine: list[str] = []
 
         for chapter in rendered:
-            item_id = f"{chapter.book.slug}-{chapter.chapter:03d}"
+            item_id = f"{chapter.book.slug}-{chapter.chapter:03d}{chapter.part}"
             manifest.append(
                 ManifestItem(item_id, f"text/{chapter.filename}", "application/xhtml+xml")
             )

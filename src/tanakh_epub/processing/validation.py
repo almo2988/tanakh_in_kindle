@@ -9,10 +9,11 @@ fetched data — nothing is hard-coded. A book passes only when:
   internal markup behind;
 - NFC loses nothing: it may reorder combining marks and split a precomposed presentation
   form (U+FB1D–FB4F) into letter + marks, but the fully decomposed text never changes;
-- the commentary lines up with the text: no entry on a chapter or verse the text lacks,
-  and never more entries than the commentary's own index counts. The index counts every
-  version of the commentary together, so *fewer* entries is a warning naming the gap in
-  the chosen version, not a failure;
+- the commentary lines up with the text: no entry on a chapter or verse the text lacks.
+  Entry counts are compared with the commentary's own index, but only as a warning: the
+  index counts every version together (Rashi on Genesis 21:2 is only in Metsudah), and for
+  some books it is simply stale (Rashi on Jonah: 53 entries in Sefaria's own merge of all
+  versions, 51 in the index);
 - no rendered chapter file is over ``layout.max_file_kb``.
 
 It also checks each embedded font's own character map against every character that font
@@ -100,23 +101,15 @@ class BookReport:
         for c in self.commentaries:
             if not c.present:
                 continue
-            if c.expected_entries is not None and c.entries > c.expected_entries:
-                out.append(f"{c.index_title}: {c.entries} entries, index says {c.expected_entries}")
-            if c.expected_verses_with is not None and c.verses_with > c.expected_verses_with:
-                out.append(
-                    f"{c.index_title}: {c.verses_with} verses with commentary, "
-                    f"index says {c.expected_verses_with}"
-                )
             out.extend(f"{c.index_title}: {item}" for item in c.misaligned)
         return out
 
     @property
     def warnings(self) -> list[str]:
         return [
-            f"{c.index_title}: this version has {c.expected_entries - c.entries} fewer "
-            f"entries than the index counts across all versions"
+            f"{c.index_title}: {c.entries} entries, the index counts {c.expected_entries}"
             for c in self.commentaries
-            if c.present and c.expected_entries is not None and c.entries < c.expected_entries
+            if c.present and c.expected_entries is not None and c.entries != c.expected_entries
         ] + self.missing_glyphs
 
     @property
@@ -150,12 +143,21 @@ def _convert(report: BookReport, convert, raw: str, reference: str):
 _ENTITIES = {"&amp;": "&", "&lt;": "<", "&gt;": ">"}
 
 
+def _drawn(char: str) -> bool:
+    """Whether a font needs a glyph for ``char``. Whitespace and default-ignorable code
+    points — bidi controls, joiners, U+034F COMBINING GRAPHEME JOINER, variation selectors —
+    are not drawn, so a font is not expected to have them."""
+    if char.isspace() or unicodedata.category(char) == "Cf":
+        return False
+    return not (char == "\u034f" or 0xFE00 <= ord(char) <= 0xFE0F)
+
+
 def _characters(internal: str) -> str:
     """The characters of internal markup a font will actually be asked to draw."""
     text = re.sub(r"<[^>]*>", "", internal)
     for entity, char in _ENTITIES.items():
         text = text.replace(entity, char)
-    return "".join(c for c in text if not c.isspace())
+    return "".join(c for c in text if _drawn(c))
 
 
 def font_codepoints(path: Path) -> set[int] | None:
@@ -303,10 +305,12 @@ def _listed(items: list[str]) -> list[str]:
 
 def format_report(reports: list[BookReport], config: Config, books: BookTable) -> str:
     versions = [f"tanakh version: {config.tanakh_source.version_title}"]
-    versions += [
-        f"{name} version: {config.commentary_sources[name].version_title}"
-        for name in config.commentaries
-    ]
+    for name in config.commentaries:
+        used = [
+            source.version_title
+            for source in config.commentary_versions_for(name, [r.title for r in reports])
+        ]
+        versions += [f"{name} version: {v}" for v in used]
     total_books = len(books)
     present = [r for r in reports if not r.error]
     chapters = sum(r.chapters for r in present)

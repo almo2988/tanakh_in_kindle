@@ -52,10 +52,10 @@ Across the Tanakh (Hebrew versions of `Rashi on <book>` in the export index, 202
 | Version | Books | License | Vocalized |
 |---|---|---|---|
 | Rosenbaum & Silbermann 1929–1934 | Genesis, Exodus, Leviticus, Deuteronomy | Public Domain | Yes |
-| Rosenbaum & Silbermann — corrected vocalization | Numbers only (a different version title) | to check | Yes |
+| Rosenbaum & Silbermann — corrected vocalization | Numbers only (a different version title) | Public Domain | Yes |
 | Sefaria vocalized edition | 26 books of Nevi'im and Ketuvim | **unknown** | Yes |
 | On Your Way | 37 books (I and II Kings are "On Your Way -- new") | Public Domain | No |
-| Metsudah (several titles) | Torah, Joshua, Kings, the five Megillot | CC BY | — |
+| Metsudah (several titles) | Torah, Joshua, Kings, the five Megillot | CC BY | Yes |
 | `merged` | all 39 | — | mixed |
 
 `merged` is Sefaria's combination of several versions. It is never used: which version
@@ -71,6 +71,18 @@ fall back to Metsudah or On Your Way. The config and `fetch` do not support per-
 versions yet; that is Phase 3 task 3.1.
 
 **For Phase 2:** keep Rosenbaum & Silbermann for Genesis.
+
+**Decided 2026-09-19 (D6): vocalized Rashi throughout.** Rosenbaum & Silbermann for the
+Torah (Numbers under its "corrected vocalization" title), Metsudah for Joshua, both books of
+Kings and the five Megillot, and the Sefaria vocalized edition for the other 26 books. The
+human chose the vowel points over a clear license for those 26: Sefaria lists that
+edition's license as "unknown", the מקורות page says so, and the build is for personal
+reading. `config/default.yaml` holds the mapping; per-book versions are implemented.
+
+**Entry counts.** Sefaria's index counts differ from the chosen versions by a few entries
+in 17 books, in both directions. Fewer can mean the entry exists only in another version
+(Genesis 21:2); more means the index is stale (Rashi on Jonah has 53 entries in Sefaria's
+own merge of all versions, and the index says 51). `validate` reports these as warnings.
 
 ## Book titles (D7)
 

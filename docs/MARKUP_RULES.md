@@ -6,7 +6,7 @@ where it was seen. When the converter stops the build on unknown markup, its mes
 here — add the row *and* the rule together.
 
 > **Scope.** These rules cover exactly the patterns `inventory-markup` found in the cached
-> data — all of Genesis and Rashi on Genesis, as of 2026-09-19 — and nothing more. That is
+> data — all 39 books and their Rashi, 51,434 strings, as of 2026-09-19 — and nothing more. That is
 > deliberate: an untested rule is worse than a loud failure. Run
 > `python -m tanakh_epub inventory-markup` after fetching each new book; it exits non-zero
 > and names the first reference of anything without a rule.
@@ -15,8 +15,8 @@ here — add the row *and* the rule together.
 
 | | Version | Inventoried over |
 |---|---|---|
-| Tanakh | *Miqra according to the Masorah* | all of בראשית — 1,533 verses |
-| Rashi | *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934* | all of רש״י על בראשית — 2,016 entries |
+| Tanakh | *Miqra according to the Masorah* | all 39 books — 23,206 verses |
+| Rashi | the seven versions in `config/default.yaml` (D6) | all 39 books — 28,228 entries |
 
 ## Implemented rules
 
@@ -32,9 +32,13 @@ here — add the row *and* the rule together.
 | `<span class="mam-kq-trivial">` | Tanakh | Span removed, word kept. A כתיב/קרי difference MAM prints as a single vocalized word | `Genesis 13:3` אׇֽהֳלֹה֙ (4 in Genesis) |
 | `<sup class="footnote-marker">*</sup>` + `<i class="footnote">…</i>` | Tanakh | **Dropped with their content** (`SPEC_DATA_SOURCE.md` §9.2). MAM's notes on other manuscript traditions, e.g. `(בספרי ספרד ואשכנז מִנְּשֽׂוֹא)`. A note may contain `<big>`; it goes with the note | `Genesis 4:13`, `5:1` (7 in Genesis) |
 | `<small>…</small>` inside a Rashi entry | Rashi | `<span class="letter-small">`, as in the Tanakh | `Rashi on Genesis 17:13:1` — `(ס"א …)` |
+| `<span class="mam-spi-invnun">׆</span>` | Tanakh | Span removed, the inverted nun kept | `Numbers 10:35–36`, `Psalms 107` (9 in all) |
+| `<span class="mam-implicit-maqaf">־</span>` | Tanakh | Span removed, the maqaf kept | `Psalms 1:1` (109, all in Psalms, Proverbs, Job) |
+| `<sup>…</sup>` with no class | Tanakh | **Kept**, as `<span class="letter-small">`. These are the four suspended letters (אותיות תלויות): `Judges 18:30` מְ**נַ**שֶּׁה, `Psalms 80:14`, `Job 38:13`, `38:15`. `SPEC_DATA_SOURCE.md` §9.2's "drop `<sup>`" is meant for footnote markers, which carry a class here; dropping these would delete letters of the text. Raising them would need `vertical-align`, which is outside SPEC §26's Kindle-safe CSS, so they are set small instead | `Judges 18:30` |
+| `<br>` inside `<b>` | Rashi | A space. The paragraph cannot end inside the bold without splitting it | `Rashi on Job 38:1:1` (once) — a dibur hamatchil on two lines |
 | `<br>` | both | Paragraph break | `Genesis 1:5`, after the parasha marker |
 | `&nbsp;` `&thinsp;` | Tanakh | Resolved to U+00A0 and U+2009 and **kept**. They are deliberate typography — they space the paseq and the parasha marker — so whitespace collapsing skips them. | `Genesis 1:5` |
-| U+200F RIGHT-TO-LEFT MARK | Rashi | Kept — it is text, not markup | `Rashi on Genesis 5:24:1` (once) |
+| Bidi controls U+200E, U+200F, U+202A, U+202C; U+200D; U+034F | Rashi | Kept — text, not markup. Invisible, so the glyph check skips them. The one U+202A (Rashi on Exodus 1:21:1) wraps only a full stop, and the stray U+202C have nothing to close | `Rashi on Exodus 1:11:3` |
 | **anything else** | both | **The build stops**, naming the tag, the class and the reference. | — |
 
 ## Known, not yet ruled on
@@ -49,10 +53,12 @@ here — add the row *and* the rule together.
   Hebrew presentation forms (U+FB2A–FB4B, e.g. כּ as one character). NFC splits each into
   letter + mark. Same text; `validate` counts these separately from the ordinary mark
   reordering and fails only if the decomposed text would change.
-- **Characters the fonts lack.** Taamey Frank CLM has no `…` (U+2026). It occurs in two
-  Rashi opening words (`Rashi on Genesis 25:27:1`, `44:18:1`), which are set in the
-  biblical font, so the Kindle draws that one character from a fallback font. `validate`
-  lists every such character as a warning.
+- **Characters the fonts lack.** Taamey Frank CLM has no `…` (U+2026), `–` (U+2013) or
+  `—` (U+2014). The first two occur in some Rashi opening words, which are set in the
+  biblical font; the Kindle draws those characters from a fallback font. `validate` lists
+  each with its first reference.
+- **Joshua 21:36–37** are `—` in MAM. The edition omits these two verses, following the
+  Aleppo Codex tradition, and leaves the dash in their place. Kept as the source has it.
 
 ## Internal markup
 
