@@ -51,6 +51,7 @@ def build_metadata(
         {"property": "tanakh:generator-version", "value": generator_version},
         {"property": "tanakh:config-hash", "value": config.config_hash},
         {"property": "tanakh:delivery-target", "value": config.delivery},
+        {"property": "tanakh:layout-profile", "value": config.layout_profile.label},
     ]
     for book in sorted(text_versions):
         custom.append(

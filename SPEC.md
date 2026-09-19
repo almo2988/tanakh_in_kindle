@@ -327,7 +327,9 @@ Rendering is driven by `commentator`, not hard-coded to Rashi: the class list is
 
 - Multiple commentary entries per verse are the norm; each stays a separate `commentary-entry` in source order.
 - Each entry may carry a `dibur_hamatchil` (see SPEC_DATA_SOURCE §9 for how it is obtained). If present it is rendered first, visually distinguished (bold/spacing, no color), followed by the entry text.
-- Page-break hints (`break-inside: avoid`) are applied **only** to a small "keep-together" wrapper: the verse + the רש״י divider + the first commentary entry. Wrapping the whole study unit (v1 spec) is withdrawn: Rashi on בראשית א׳:א׳ alone spans several screens, and readers that honor the hint (Kobo, Apple Books) would leave large blank pages. Kindle ignores the hint entirely, so nothing may depend on it.
+- Page-break hints (`break-inside: avoid`) are applied to a small "keep-together" wrapper: the verse + the רש״י divider + the first commentary entry. Wrapping the whole study unit (v1 spec) is withdrawn: Rashi on בראשית א׳:א׳ alone spans several screens, and readers that honor the hint (Kobo, Apple Books) would leave large blank pages.
+- A layout profile may also ask **each individual entry** after the first not to split (`breaks.keep_each_entry_together`). Each entry is its own element for exactly this reason. The request is made one entry at a time and never for the run of entries, so the study unit as a whole always stays free to split.
+- Whether the Paperwhite honours any of these hints is not established. It is being tested (`docs/LAYOUT_EXPERIMENT.md`, D10). Either way, nothing may depend on a hint being honoured.
 
 ```xml
 <section class="study-unit">
@@ -359,6 +361,8 @@ Default hierarchy (configurable via `typography.*_scale`):
 | Rashi text | 0.85em |
 
 When Kindle's font size changes, all of these scale together and the ratios stay intact. Kindle respects relative `font-size` and `line-height`.
+
+Line heights (`typography.*_line_height`), vertical spacing (`spacing.*`) and the optional page-break hints (`breaks.*`) are configurable too. A **layout profile** (`layout_profiles.*`, chosen by `layout.profile`) overrides any of them, but never a font or the content. Three profiles are defined for the device comparison in `docs/LAYOUT_EXPERIMENT.md` (decision D10); until D10 is settled, a normal build uses the control, `current`, which has the values in the table above.
 
 Note for the Paperwhite (7″): Rashi script at 0.85em is a legibility gamble. The POC must include a legibility check on the device; if it fails, raise `rashi_scale` (0.9–0.95) or set `rashi_script: false` (§15.2) before scaling to the full Tanakh.
 
@@ -520,7 +524,7 @@ Entries keep their original source order. Never sort alphabetically, by length, 
 
 ## 24. Visual Separation
 
-Subtle and E-Ink friendly: `──────── רש״י ────────` (text + thin top/bottom border), or `רש״י` over a thin rule.
+Subtle and E-Ink friendly: **one** thin rule above the label `רש״י`, and no second rule below it. The label is centred or at the start of the line, depending on the layout profile. It is a compact label, not a band between two lines.
 
 Avoid colors, background images, heavy borders, icons, decorative graphics. Must look right in black-and-white, dark mode, inverted mode and on color E-Ink.
 
@@ -545,7 +549,8 @@ The book must remain usable when all advanced CSS is ignored (which is close to 
 ## 27. Page Break Behaviour
 
 - Never force each verse or each commentary entry onto its own page.
-- The reader reflows freely. `break-inside: avoid` on `.keep-together` and `break-after: avoid` on headings are soft hints only.
+- The reader reflows freely. `break-inside: avoid` on `.keep-together` and `break-after: avoid` on headings are soft hints only. Layout profiles may add three more: each commentary entry, the divider with its neighbours, and the book heading with the chapter heading (§13, `docs/LAYOUT_EXPERIMENT.md`).
+- Every hint is written in both spellings: `break-*` and the CSS 2.1 `page-break-*`.
 - Chapter headings: `.chapter-heading { break-after: avoid; page-break-after: avoid; }`.
 - Optionally `break-before: page` on each **book's** first chapter so a new book starts on a fresh page. Chapters do not force a page break.
 
@@ -645,6 +650,9 @@ python -m tanakh_epub fetch  [--book Genesis] [--refresh | --refresh-all]
 python -m tanakh_epub validate                       # data completeness + markup report, no EPUB
 python -m tanakh_epub inventory-markup               # tag/class inventory of cached data
 python -m tanakh_epub check output/Tanakh_with_Rashi.epub   # EPUBCheck (+ Kindle Previewer if installed)
+python -m tanakh_epub build --layout-profile dense   # any key under layout_profiles
+python -m tanakh_epub experiment-layout [--chapter Genesis 1] [--profiles …] [--kpf]
+                                                     # one EPUB per layout profile, same content
 ```
 
 ---

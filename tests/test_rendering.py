@@ -109,6 +109,50 @@ def test_keep_together_holds_verse_divider_and_first_entry_only(tree) -> None:
     assert len(list(rest)) == 2, "entries 2 and 3 belong outside the keep-together block"
 
 
+def test_every_verse_is_followed_by_its_own_commentary(tree) -> None:
+    """Reading order: verse N, then every entry on verse N, then verse N + 1 — never
+    commentary gathered elsewhere (SPEC §2)."""
+    current_verse = None
+    seen_entries: list[str] = []
+    for element in tree.iter():
+        classes = _class(element).split()
+        if "verse" in classes:
+            current_verse = element.get("id")
+        elif "commentary-entry" in classes:
+            assert current_verse is not None
+            # rashi-genesis-1-4-1 belongs to genesis-1-4
+            assert element.get("id").rsplit("-", 1)[0] == f"rashi-{current_verse}"
+            seen_entries.append(element.get("id"))
+    assert len(seen_entries) == 17
+
+
+def test_verse_number_is_inline_with_its_verse(tree) -> None:
+    """The number opens the verse's first line; it is a span, not a block of its own."""
+    for verse in _find_all(tree, "div", "verse"):
+        children = list(verse)
+        assert [child.tag for child in children[:2]] == [f"{XHTML}span", f"{XHTML}span"]
+        assert [_class(child) for child in children[:2]] == ["verse-number", "biblical-text"]
+        assert not (verse.text or "").strip()
+        assert not (children[0].tail or "").strip("\n ")
+
+
+def test_later_entries_are_separate_elements_outside_the_first_block(tree) -> None:
+    """Each entry after the first is its own element, so a stylesheet can ask each one
+    not to split — without that request ever covering the whole run."""
+    for unit in _find_all(tree, "section", "study-unit"):
+        keep = unit.find(f"{XHTML}div[@class='keep-together']")
+        in_keep = [c for c in keep if "commentary-entry" in _class(c).split()]
+        assert len(in_keep) <= 1
+        rest = unit.find(f"{XHTML}section")
+        if rest is None:
+            continue
+        assert in_keep, "later entries without a first one"
+        for child in rest:
+            assert child.tag == f"{XHTML}div"
+            assert "commentary-entry" in _class(child).split()
+            assert child.get("id")
+
+
 def test_divider_label_comes_from_config_not_hard_coded(tree, config) -> None:
     dividers = _find_all(tree, "div", "commentary-divider")
     assert dividers

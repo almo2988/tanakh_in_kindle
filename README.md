@@ -34,6 +34,20 @@ pytest                        # offline; network tests skipped unless RUN_NETWOR
 ruff check . && ruff format .
 ```
 
+### Layout experiment
+
+The page layout is not settled yet. One command builds the same content with three layouts,
+for comparison on the Paperwhite:
+
+```sh
+python -m tanakh_epub experiment-layout --chapter Genesis 1
+```
+
+This writes `output/layout_A_current.epub`, `layout_B_balanced` and `layout_C_dense`, plus a
+report of each one's parameters and sizes. Only the stylesheet, the title and the
+identifier differ between them, so all three can sit in the Kindle library together. What to compare, and at which font sizes, is in
+`docs/LAYOUT_EXPERIMENT.md`.
+
 ---
 
 ## Getting the book onto the Kindle
@@ -110,7 +124,7 @@ epub/                       OPF · nav.xhtml · toc.ncx · zip
 | Path | What it holds |
 |---|---|
 | `config/books.yaml` | the 39 books: Sefaria title, Hebrew title, slug, section |
-| `config/default.yaml` | fonts, typography scales, layout, sources — every tunable |
+| `config/default.yaml` | fonts, typography, spacing, page-break hints, layout profiles, sources — every tunable |
 | `config/commentators.yaml` | Hebrew label, slug and Sefaria prefix per commentator |
 | `tests/fixtures/` | real Sefaria data, captured once by `scripts/capture_fixtures.py` |
 | `fonts/` | only fonts whose license has been read and recorded |

@@ -1,6 +1,7 @@
 """Command line interface — SPEC.md §31.
 
-Phase 1 implements ``build`` and ``check``. ``fetch``, ``validate`` and
+Phase 1 implements ``build``, ``check`` and ``experiment-layout`` (one EPUB per layout
+profile, for the device to choose between — docs/LAYOUT_EXPERIMENT.md). ``fetch``, ``validate`` and
 ``inventory-markup`` belong to the Sefaria provider and land in Phase 2; they are listed
 here so ``--help`` tells the truth about what does and does not exist yet, and so running
 one gives a pointer rather than an ``unknown command``.
@@ -18,10 +19,11 @@ from . import __version__
 from .books import BookTable, load_books
 from .config import Config, load_config
 from .epub.builder import EpubBuilder
+from .layout_experiment import build_variants, content_differences, format_report
 from .paths import PROJECT_ROOT
 from .processing.study_units import ChapterSelection, load_chapters, stats
 from .providers.local import LocalProvider
-from .validation_tools import run_epubcheck, run_kindle_previewer
+from .validation_tools import ToolResult, run_epubcheck, run_kindle_previewer
 
 PHASE_2_COMMANDS = {
     "fetch": "2.3",
@@ -39,31 +41,36 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build = subparsers.add_parser("build", help="build an EPUB from local data")
+    _add_selection_arguments(build)
     build.add_argument(
-        "--config", type=Path, default=None, help="config file (default: config/default.yaml)"
-    )
-    build.add_argument("--book", metavar="BOOK", help="build one book, by its Sefaria title")
-    build.add_argument("--books", nargs="+", metavar="BOOK", help="build several books")
-    build.add_argument(
-        "--chapter",
-        nargs=2,
-        metavar=("BOOK", "N"),
-        help="build a single chapter, e.g. --chapter Genesis 1",
-    )
-    build.add_argument(
-        "--max-verse",
-        type=int,
+        "--layout-profile",
+        metavar="NAME",
         default=None,
-        metavar="N",
-        help="stop after verse N — for the POC build (בראשית א׳:א׳–י׳)",
+        help="a key under layout_profiles in the config (default: layout.profile)",
     )
     build.add_argument("--no-commentary", action="store_true", help="verses only")
     build.add_argument("--output", type=Path, default=None, help="output .epub path")
-    build.add_argument(
-        "--kpf",
-        action="store_true",
-        help="also convert the EPUB to KPF with Kindle Previewer (next to the EPUB)",
+    _add_kpf_argument(build)
+
+    experiment = subparsers.add_parser(
+        "experiment-layout",
+        help="build the same content once per layout profile, for the device test",
+        description="Build one EPUB per layout profile from identical content — "
+        "output/layout_<label>.epub — and print the parameters and sizes of each. "
+        "With no selection, builds every book that has local data.",
     )
+    _add_selection_arguments(experiment)
+    experiment.add_argument(
+        "--profiles",
+        nargs="+",
+        metavar="NAME",
+        default=None,
+        help="profiles to build, in this order (default: every profile in the config)",
+    )
+    experiment.add_argument(
+        "--output-dir", type=Path, default=None, help="where the EPUBs go (default: output/)"
+    )
+    _add_kpf_argument(experiment)
 
     check = subparsers.add_parser(
         "check", help="run EPUBCheck (and Kindle Previewer, if installed) over an EPUB"
@@ -77,6 +84,35 @@ def _parser() -> argparse.ArgumentParser:
         subparsers.add_parser(name, help=f"(Phase {PHASE_2_COMMANDS[name][0]}) not implemented yet")
 
     return parser
+
+
+def _add_selection_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--config", type=Path, default=None, help="config file (default: config/default.yaml)"
+    )
+    parser.add_argument("--book", metavar="BOOK", help="build one book, by its Sefaria title")
+    parser.add_argument("--books", nargs="+", metavar="BOOK", help="build several books")
+    parser.add_argument(
+        "--chapter",
+        nargs=2,
+        metavar=("BOOK", "N"),
+        help="build a single chapter, e.g. --chapter Genesis 1",
+    )
+    parser.add_argument(
+        "--max-verse",
+        type=int,
+        default=None,
+        metavar="N",
+        help="stop after verse N — for the POC build (בראשית א׳:א׳–י׳)",
+    )
+
+
+def _add_kpf_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--kpf",
+        action="store_true",
+        help="also convert each EPUB to KPF with Kindle Previewer (next to the EPUB)",
+    )
 
 
 def _selections(args, config: Config, books: BookTable) -> tuple[list[ChapterSelection], str]:
@@ -104,13 +140,9 @@ def _selections(args, config: Config, books: BookTable) -> tuple[list[ChapterSel
     )
 
 
-def cmd_build(args) -> int:
-    config = load_config(args.config)
-    books = load_books()
-
-    if args.no_commentary:
-        config = Config(**{**vars(config), "commentaries": ()})
-
+def _load_content(args, config: Config, books: BookTable):
+    """The requested chapters as the internal model, or ``None`` if there is no local
+    data for any of them."""
     provider = LocalProvider(
         books=books,
         expected_versions={
@@ -128,9 +160,42 @@ def cmd_build(args) -> int:
             "run `python -m tanakh_epub fetch` once Phase 2 lands.",
             file=sys.stderr,
         )
-        return 1
+        return None
+    return (*load_chapters(provider, config, selections), default_name)
 
-    chapters, text_versions, commentary_versions = load_chapters(provider, config, selections)
+
+def _shown(path: Path) -> Path:
+    return path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
+
+
+def _convert_to_kpf(epub: Path) -> ToolResult:
+    """Kindle Previewer's conversion, with the KPF copied next to the EPUB."""
+    # Previewer fails if its output folder is the input's own folder, so use a subfolder.
+    work_dir = epub.parent / "kindle-previewer" / epub.stem
+    converted = run_kindle_previewer(epub, work_dir)
+    print(f"\n{converted.message}")
+    if not converted.passed:
+        if converted.output:
+            print("\n".join(f"  {line}" for line in converted.output.splitlines()))
+        return converted
+    kpf = max(work_dir.glob("**/*.kpf"), key=lambda p: p.stat().st_mtime)
+    target = epub.with_suffix(".kpf")
+    shutil.copyfile(kpf, target)
+    print(f"Wrote {_shown(target)}")
+    return converted
+
+
+def cmd_build(args) -> int:
+    config = load_config(args.config, profile=args.layout_profile)
+    books = load_books()
+
+    if args.no_commentary:
+        config = Config(**{**vars(config), "commentaries": ()})
+
+    content = _load_content(args, config, books)
+    if content is None:
+        return 1
+    chapters, text_versions, commentary_versions, default_name = content
     output = args.output or (config.output_dir / default_name)
 
     result = EpubBuilder(config, books).build(
@@ -142,13 +207,9 @@ def cmd_build(args) -> int:
     )
 
     counts = stats(chapters)
-    shown = (
-        result.path.relative_to(PROJECT_ROOT)
-        if result.path.is_relative_to(PROJECT_ROOT)
-        else result.path
-    )
-    print(f"Built {shown}")
+    print(f"Built {_shown(result.path)}")
     print(f"  identifier         {result.identifier}")
+    print(f"  layout profile     {config.layout_profile.label}")
     print(f"  chapter files      {len(result.chapters)}")
     print(f"  verses             {counts.verses}")
     print(
@@ -177,21 +238,62 @@ def cmd_build(args) -> int:
             print(f"  {chapter.filename}  {chapter.size_bytes / 1024:.0f} KB", file=sys.stderr)
         return 1
 
-    if args.kpf:
-        # Previewer fails if its output folder is the input's own folder, so use a subfolder.
-        work_dir = result.path.parent / "kindle-previewer"
-        converted = run_kindle_previewer(result.path, work_dir)
-        print(f"\n{converted.message}")
-        if not converted.passed:
-            if converted.output:
-                print("\n".join(f"  {line}" for line in converted.output.splitlines()))
-            return 1
-        kpf = max(work_dir.glob("**/*.kpf"), key=lambda p: p.stat().st_mtime)
-        target = result.path.with_suffix(".kpf")
-        shutil.copyfile(kpf, target)
-        print(f"Wrote {target}")
+    if args.kpf and not _convert_to_kpf(result.path).passed:
+        return 1
 
     return 0
+
+
+def cmd_experiment_layout(args) -> int:
+    base = load_config(args.config)
+    if not base.layout_profiles:
+        print(f"{base.path} defines no layout_profiles.", file=sys.stderr)
+        return 1
+    books = load_books()
+
+    # Content is loaded once and shared, so no variant can differ in what it says.
+    content = _load_content(args, base, books)
+    if content is None:
+        return 1
+    chapters, text_versions, commentary_versions, _ = content
+
+    output_dir = args.output_dir or base.output_dir
+    variants = build_variants(
+        config_path=args.config,
+        profile_names=args.profiles or list(base.layout_profiles),
+        books=books,
+        chapters=chapters,
+        text_versions=text_versions,
+        commentary_versions=commentary_versions,
+        output_dir=output_dir,
+        build_date=datetime.now(UTC),
+    )
+
+    report = format_report(variants, chapters)
+    print(report)
+    report_path = output_dir / "layout_experiment.txt"
+    report_path.write_text(report, encoding="utf-8")
+    print(f"Report written to {_shown(report_path)}")
+
+    problems = content_differences(variants)
+    if problems:
+        print("\nThe variants differ in more than layout:", file=sys.stderr)
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
+        return 1
+    print(
+        "Every chapter, the navigation, the sources page and both fonts are byte-identical "
+        "across the variants; only the stylesheet, title and identifier differ."
+    )
+
+    failed = False
+    for variant in variants:
+        if variant.result.oversized:
+            failed = True
+            print(f"{variant.result.path.name}: chapter files over the size limit", file=sys.stderr)
+        if args.kpf and not _convert_to_kpf(variant.result.path).passed:
+            failed = True
+    return 1 if failed else 0
 
 
 def cmd_check(args) -> int:
@@ -241,5 +343,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_build(args)
     if args.command == "check":
         return cmd_check(args)
+    if args.command == "experiment-layout":
+        return cmd_experiment_layout(args)
 
     raise AssertionError(f"unhandled command {args.command!r}")

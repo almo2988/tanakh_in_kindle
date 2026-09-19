@@ -7,6 +7,7 @@ with a path, rather than three layers down as a ``KeyError`` or a silently missi
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +51,52 @@ class Typography:
     divider_scale: float
     rashi_script: bool
     dibur_hamatchil_in_biblical_font: bool
+    biblical_line_height: float = 1.9
+    rashi_line_height: float = 1.65
+
+
+@dataclass(frozen=True)
+class Spacing:
+    """Vertical space, in ``em`` of the element it sits on — exactly as CSS reads it.
+
+    Defaults are the values the stylesheet carried before layout profiles existed, so a
+    config without a ``spacing`` section renders as it always did.
+    """
+
+    study_unit: float = 1.1
+    verse: float = 0.35
+    divider_margin_top: float = 0.5
+    divider_padding_top: float = 0.15
+    divider_padding_bottom: float = 0.15
+    divider_margin_bottom: float = 0.4
+    divider_align: str = "center"
+    entry: float = 0.4
+    rashi_paragraph: float = 0.3
+
+
+@dataclass(frozen=True)
+class Breaks:
+    """The optional page-break hints (SPEC §27). Two hints are not optional and so are not
+    here: verse + divider + first entry stay together, and a chapter heading stays with
+    what follows it. Everything here is a hint a reader may ignore."""
+
+    keep_each_entry_together: bool = False
+    keep_divider_with_neighbours: bool = False
+    keep_book_heading_with_next: bool = False
+
+
+@dataclass(frozen=True)
+class LayoutProfile:
+    name: str
+    """Key under ``layout_profiles`` — e.g. ``dense``."""
+
+    label: str
+    """Stable developer-facing id, e.g. ``C-dense``. Never shown to the reader."""
+
+    hebrew_label: str
+    """What the reader sees in the title of an experiment build, e.g. ``פריסה ג׳``."""
+
+    description: str
 
 
 @dataclass(frozen=True)
@@ -95,6 +142,10 @@ class Config:
     biblical_font: FontInfo
     rashi_font: FontInfo
     typography: Typography
+    spacing: Spacing
+    breaks: Breaks
+    layout_profile: LayoutProfile
+    layout_profiles: dict[str, LayoutProfile]
     layout: Layout
     navigation: Navigation
     cover_mode: str
@@ -116,8 +167,14 @@ class Config:
 
     @property
     def config_hash(self) -> str:
-        """Stable hash of the config file, for the build manifest."""
-        canonical = yaml.safe_dump(self.raw, sort_keys=True, allow_unicode=True)
+        """Stable hash of the config file and the layout profile applied to it, for the build
+        manifest — and for the identifier, so the layout variants of the same content
+        sit side by side on the device instead of replacing one another."""
+        canonical = yaml.safe_dump(
+            {"config": self.raw, "layout_profile": self.layout_profile.name},
+            sort_keys=True,
+            allow_unicode=True,
+        )
         return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -182,7 +239,130 @@ def load_commentators(path: Path | None = None) -> dict[str, CommentatorInfo]:
     return out
 
 
-def load_config(path: Path | None = None) -> Config:
+PROFILE_TYPOGRAPHY_KEYS = frozenset(
+    {
+        "biblical_scale",
+        "rashi_scale",
+        "verse_number_scale",
+        "divider_scale",
+        "biblical_line_height",
+        "rashi_line_height",
+    }
+)
+"""What a layout profile may change in ``typography``: sizes and line heights only. Which
+font sets the commentary is a font decision (D3), not a layout one, so every variant of
+the experiment is set in the same faces."""
+
+PROFILE_SECTIONS = {
+    "typography": PROFILE_TYPOGRAPHY_KEYS,
+    "spacing": frozenset(f.name for f in dataclasses.fields(Spacing)),
+    "breaks": frozenset(f.name for f in dataclasses.fields(Breaks)),
+}
+PROFILE_META_KEYS = frozenset({"label", "hebrew_label", "description", "extends"})
+DIVIDER_ALIGNMENTS = ("center", "right")
+BASE_PROFILE = LayoutProfile(
+    name="base",
+    label="base",
+    hebrew_label="",
+    description="the typography, spacing and breaks sections, unmodified",
+)
+
+
+def _profile_overrides(
+    profiles: dict[str, Any], name: str, path: Path, chain: tuple[str, ...] = ()
+) -> dict[str, dict[str, Any]]:
+    """The overrides a profile makes, with anything it ``extends`` applied first."""
+    if name not in profiles:
+        available = ", ".join(profiles) or "none"
+        raise ValueError(f'{path}: no layout profile "{name}" (defined: {available})')
+    if name in chain:
+        raise ValueError(f"{path}: layout profiles extend in a cycle: {' → '.join(chain)} → {name}")
+
+    entry = profiles[name] or {}
+    unknown = set(entry) - PROFILE_META_KEYS - PROFILE_SECTIONS.keys()
+    if unknown:
+        raise ValueError(f"{path}: layout_profiles.{name} has unknown keys {sorted(unknown)}")
+
+    if entry.get("extends"):
+        merged = _profile_overrides(profiles, entry["extends"], path, (*chain, name))
+    else:
+        merged = {section: {} for section in PROFILE_SECTIONS}
+
+    for section, allowed in PROFILE_SECTIONS.items():
+        values = entry.get(section) or {}
+        refused = set(values) - allowed
+        if refused:
+            raise ValueError(
+                f"{path}: layout_profiles.{name}.{section} cannot set {sorted(refused)}. "
+                f"A layout profile changes sizes, spacing and page-break hints only — "
+                f"never fonts or content."
+            )
+        merged[section] = {**merged[section], **values}
+    return merged
+
+
+def _layout_profiles(raw: dict[str, Any], path: Path) -> dict[str, LayoutProfile]:
+    out: dict[str, LayoutProfile] = {}
+    labels: set[str] = set()
+    for name, entry in (raw.get("layout_profiles") or {}).items():
+        entry = entry or {}
+        missing = {"label", "hebrew_label"} - entry.keys()
+        if missing:
+            raise ValueError(f"{path}: layout_profiles.{name} is missing {sorted(missing)}")
+        if entry["label"] in labels:
+            raise ValueError(f'{path}: two layout profiles share the label "{entry["label"]}"')
+        labels.add(entry["label"])
+        out[name] = LayoutProfile(
+            name=name,
+            label=entry["label"],
+            hebrew_label=entry["hebrew_label"],
+            description=" ".join(str(entry.get("description", "")).split()),
+        )
+    return out
+
+
+def _positive(section: str, key: str, value: Any, path: Path, *, zero_ok: bool) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{path}: {section}.{key} must be a number, not {value!r}")
+    if value < 0 or (value == 0 and not zero_ok):
+        raise ValueError(f"{path}: {section}.{key} must be {'≥' if zero_ok else '>'} 0")
+    return float(value)
+
+
+def _spacing(values: dict[str, Any], path: Path) -> Spacing:
+    unknown = set(values) - PROFILE_SECTIONS["spacing"]
+    if unknown:
+        raise ValueError(f"{path}: spacing has unknown keys {sorted(unknown)}")
+    out: dict[str, Any] = {}
+    for key, value in values.items():
+        if key == "divider_align":
+            if value not in DIVIDER_ALIGNMENTS:
+                raise ValueError(
+                    f"{path}: spacing.divider_align must be one of {DIVIDER_ALIGNMENTS}"
+                )
+            out[key] = value
+        else:
+            out[key] = _positive("spacing", key, value, path, zero_ok=True)
+    return Spacing(**out)
+
+
+def _breaks(values: dict[str, Any], path: Path) -> Breaks:
+    unknown = set(values) - PROFILE_SECTIONS["breaks"]
+    if unknown:
+        raise ValueError(f"{path}: breaks has unknown keys {sorted(unknown)}")
+    for key, value in values.items():
+        if not isinstance(value, bool):
+            raise ValueError(f"{path}: breaks.{key} must be true or false")
+    return Breaks(**values)
+
+
+def load_config(path: Path | None = None, *, profile: str | None = None) -> Config:
+    """Load the config, with a layout profile applied.
+
+    ``profile`` names an entry under ``layout_profiles``; without it, ``layout.profile``
+    decides, and a config that names no profile at all renders its ``typography``,
+    ``spacing`` and ``breaks`` sections as written.
+    """
     path = path or DEFAULT_CONFIG
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
 
@@ -212,6 +392,25 @@ def load_config(path: Path | None = None) -> Config:
         # SPEC.md §11: one file per book is withdrawn, not configurable.
         raise ValueError(f'{path}: layout.file_per must be "chapter"')
 
+    profiles = _layout_profiles(raw, path)
+    profile_name = profile or layout_raw.get("profile")
+    if profile_name is None:
+        layout_profile = BASE_PROFILE
+        overrides: dict[str, dict[str, Any]] = {section: {} for section in PROFILE_SECTIONS}
+    else:
+        overrides = _profile_overrides(raw.get("layout_profiles") or {}, profile_name, path)
+        layout_profile = profiles[profile_name]
+
+    typography_values = {
+        "biblical_scale": typography_raw.get("biblical_scale", 1.25),
+        "rashi_scale": typography_raw.get("rashi_scale", 0.85),
+        "verse_number_scale": typography_raw.get("verse_number_scale", 0.75),
+        "divider_scale": typography_raw.get("divider_scale", 0.85),
+        "biblical_line_height": typography_raw.get("biblical_line_height", 1.9),
+        "rashi_line_height": typography_raw.get("rashi_line_height", 1.65),
+        **overrides["typography"],
+    }
+
     return Config(
         title=raw["title"],
         creator=raw.get("creator", ""),
@@ -224,15 +423,19 @@ def load_config(path: Path | None = None) -> Config:
         biblical_font=_font(raw, "biblical", path),
         rashi_font=_font(raw, "rashi", path),
         typography=Typography(
-            biblical_scale=float(typography_raw.get("biblical_scale", 1.25)),
-            rashi_scale=float(typography_raw.get("rashi_scale", 0.85)),
-            verse_number_scale=float(typography_raw.get("verse_number_scale", 0.75)),
-            divider_scale=float(typography_raw.get("divider_scale", 0.85)),
+            **{
+                key: _positive("typography", key, value, path, zero_ok=False)
+                for key, value in typography_values.items()
+            },
             rashi_script=bool(typography_raw.get("rashi_script", True)),
             dibur_hamatchil_in_biblical_font=bool(
                 typography_raw.get("dibur_hamatchil_in_biblical_font", True)
             ),
         ),
+        spacing=_spacing({**(raw.get("spacing") or {}), **overrides["spacing"]}, path),
+        breaks=_breaks({**(raw.get("breaks") or {}), **overrides["breaks"]}, path),
+        layout_profile=layout_profile,
+        layout_profiles=profiles,
         layout=Layout(
             file_per="chapter",
             max_file_kb=int(layout_raw.get("max_file_kb", 300)),
