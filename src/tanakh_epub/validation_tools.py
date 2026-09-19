@@ -78,16 +78,21 @@ def run_epubcheck(epub: Path) -> ToolResult:
     )
 
 
+KINDLE_PREVIEWER_APPS = (
+    "/Applications/Kindle Previewer 4.app/Contents/MacOS/KindlePreviewer4CLI",
+    "/Applications/Kindle Previewer 3.app/Contents/MacOS/Kindle Previewer 3",
+)
+
+
 def find_kindle_previewer() -> str | None:
     explicit = os.environ.get(KINDLE_PREVIEWER_ENV)
     if explicit and Path(explicit).exists():
         return explicit
-    for name in ("kindlepreviewer", "KindlePreviewer"):
+    for name in ("kindlepreviewer", "KindlePreviewer", "KindlePreviewer4CLI"):
         found = shutil.which(name)
         if found:
             return found
-    mac = Path("/Applications/Kindle Previewer 3.app/Contents/MacOS/Kindle Previewer 3")
-    return str(mac) if mac.exists() else None
+    return next((app for app in KINDLE_PREVIEWER_APPS if Path(app).exists()), None)
 
 
 def run_kindle_previewer(epub: Path, output_dir: Path) -> ToolResult:
@@ -95,12 +100,12 @@ def run_kindle_previewer(epub: Path, output_dir: Path) -> ToolResult:
     command = find_kindle_previewer()
     if command is None:
         return ToolResult(
-            tool="Kindle Previewer 3",
+            tool="Kindle Previewer",
             available=False,
             passed=False,
             output="",
             message=(
-                "Kindle Previewer 3 not found — skipped. It is macOS/Windows only; "
+                "Kindle Previewer not found — skipped. It is macOS/Windows only; "
                 f"set {KINDLE_PREVIEWER_ENV} to its executable if it is installed elsewhere. "
                 "Kindle-specific rendering is not verified by this run."
             ),
@@ -108,19 +113,22 @@ def run_kindle_previewer(epub: Path, output_dir: Path) -> ToolResult:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     completed = subprocess.run(
-        [command, str(epub), "-convert", "-output", str(output_dir)],
+        [command, str(epub), "--convert", "--output", str(output_dir)],
         capture_output=True,
         text=True,
     )
     output = (completed.stdout + completed.stderr).strip()
+    kpf = sorted(output_dir.glob("**/*.kpf"), key=lambda p: p.stat().st_mtime)
+    # Previewer falls back to Mobi when Enhanced Typesetting is unsupported: not a KPF.
+    ok = completed.returncode == 0 and bool(kpf)
     return ToolResult(
-        tool="Kindle Previewer 3",
+        tool="Kindle Previewer",
         available=True,
-        passed=completed.returncode == 0,
+        passed=ok,
         output=output,
         message=(
-            "Kindle Previewer conversion succeeded"
-            if completed.returncode == 0
-            else "Kindle Previewer conversion failed"
+            f"Kindle Previewer conversion succeeded: {kpf[-1]}"
+            if ok
+            else "Kindle Previewer conversion failed or produced no KPF"
         ),
     )

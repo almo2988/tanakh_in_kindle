@@ -31,7 +31,7 @@ def test_poc_epub_passes_epubcheck(poc_epub) -> None:
 def test_poc_epub_converts_in_kindle_previewer(poc_epub, tmp_path) -> None:
     if find_kindle_previewer() is None:
         pytest.skip(
-            "Kindle Previewer 3 not installed (macOS/Windows only). "
+            "Kindle Previewer not installed (macOS/Windows only). "
             "Kindle-specific rendering is NOT verified."
         )
     result = run_kindle_previewer(poc_epub, tmp_path / "kpf")

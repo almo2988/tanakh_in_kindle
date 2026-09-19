@@ -49,7 +49,7 @@ def test_check_runs_and_reports(tmp_path: Path, capsys) -> None:
     code = main(["check", str(output)])
     report = capsys.readouterr().out
     assert "EPUBCheck" in report
-    assert "Kindle Previewer 3" in report
+    assert "Kindle Previewer" in report
     assert code in (0, 1)
 
 

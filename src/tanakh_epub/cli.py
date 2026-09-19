@@ -9,6 +9,7 @@ one gives a pointer rather than an ``unknown command``.
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -58,6 +59,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     build.add_argument("--no-commentary", action="store_true", help="verses only")
     build.add_argument("--output", type=Path, default=None, help="output .epub path")
+    build.add_argument(
+        "--kpf",
+        action="store_true",
+        help="also convert the EPUB to KPF with Kindle Previewer (next to the EPUB)",
+    )
 
     check = subparsers.add_parser(
         "check", help="run EPUBCheck (and Kindle Previewer, if installed) over an EPUB"
@@ -162,6 +168,20 @@ def cmd_build(args) -> int:
         for chapter in result.oversized:
             print(f"  {chapter.filename}  {chapter.size_bytes / 1024:.0f} KB", file=sys.stderr)
         return 1
+
+    if args.kpf:
+        # Previewer fails if its output folder is the input's own folder, so use a subfolder.
+        work_dir = result.path.parent / "kindle-previewer"
+        converted = run_kindle_previewer(result.path, work_dir)
+        print(f"\n{converted.message}")
+        if not converted.passed:
+            if converted.output:
+                print("\n".join(f"  {line}" for line in converted.output.splitlines()))
+            return 1
+        kpf = max(work_dir.glob("**/*.kpf"), key=lambda p: p.stat().st_mtime)
+        target = result.path.with_suffix(".kpf")
+        shutil.copyfile(kpf, target)
+        print(f"Wrote {target}")
 
     return 0
 
