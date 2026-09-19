@@ -9,10 +9,10 @@
 | | |
 |---|---|
 | **Current phase** | 1 — POC scaffold |
-| **Status** | **Cause found: two embedded families in one `font-family` stack.** Round 7's diagnostic applies a second font correctly on the device — and the only structural difference from the failing book is that its rule names one embedded family plus a generic, where `.commentary-text` named two. That was the single rule in the whole stylesheet naming two, and the single rule that failed. Fixed and rebuilt. |
-| **Blocked on** | confirmation on the device. |
+| **Status** | Two things are waiting on the device. (1) **The font fix:** the stylesheet now names one embedded family per `font-family` stack. Is the commentary in Rashi script now? (2) **The layout experiment (D10):** four layout variants of בראשית א׳, built from identical content, for choosing a layout on the Paperwhite. See `docs/LAYOUT_EXPERIMENT.md`. |
+| **Blocked on** | the device test. |
 | **Last session** | 2026-09-19 |
-| **Next action** | **(human)** sideload the rebuilt `output/Genesis_Chapter_1.epub`. Is the commentary in Rashi script? If yes, D2/D3/D4 can all be settled and the Phase 1 device table finished. |
+| **Next action** | **(human)** run `python -m tanakh_epub experiment-layout --chapter Genesis 1`, then sideload the four `output/layout_*.epub` files with Publisher Font selected. Any one of them answers the font question. Then compare all four at small, default and large font sizes using `docs/LAYOUT_EXPERIMENT.md`, fill in the "Layout experiment" table below, and decide D10. |
 
 ---
 
@@ -169,8 +169,50 @@ device. Never attributed — it may be Send to Kindle (Path B) rather than the m
 one control if a Path B round happens.
 
 *If the run of Rashi still breaks the reading,* the remaining levers are all inline: a
-smaller `rashi_scale`, a stronger divider, keeping long entries in one block. Not started;
-wait for the font fix to be confirmed first.
+smaller `rashi_scale`, a stronger divider, keeping long entries in one block. ~~Not started;
+wait for the font fix to be confirmed first.~~ Started 2026-09-19, at the human's request,
+as the layout experiment below. It uses the same fonts, so it does not depend on the font fix.
+
+**Layout experiment (D10) — 2026-09-19.** The same content is built four ways, so the
+Paperwhite can decide the layout: A-current (control), B-balanced, C-dense, and
+D-dense-break-aware (C plus page-break hints). Parameters, reasoning and the test protocol
+are in `docs/LAYOUT_EXPERIMENT.md`. How it is built:
+
+- Typography, spacing and page-break hints now come from `typography`, `spacing` and
+  `breaks` in the config. A **layout profile** under `layout_profiles` overrides them.
+  There is still one renderer, and the chapter XHTML is byte-identical across profiles.
+  A normal build uses `layout.profile: current`, which renders exactly as before except
+  for the divider.
+- **The divider changed for every build:** one rule above the label, no rule below. That
+  was a requirement, not something under test, so A carries it too.
+- `experiment-layout` builds all four from one load of the content. It fails if anything
+  other than the stylesheet, title or identifier differs between them. The title carries a
+  Hebrew label (`פריסה א׳`–`ד׳`) and the identifier differs per profile, so all four can
+  sit in the library together.
+- The whole study unit is never asked to stay together. In D, each individual entry is.
+- The biblical line heights were checked against the font's real mark extents, measured
+  with HarfBuzz: 1.24em of ink at most, and 1.6 is the lowest line height used.
+- Kindle Previewer 4 converted all four: Enhanced Typesetting supported, 0 errors, 0
+  quality issues. EPUBCheck was **not** run this session, because there is no Java on this
+  Mac. It must be run before the experiment counts as clean.
+- **Not verifiable yet:** chapter and book boundaries. The offline fixtures hold one
+  chapter. Repeat the comparison with full Genesis in Phase 2.
+
+**Device results — layout experiment** (fill per variant; note font size where it matters)
+
+| Check (`docs/LAYOUT_EXPERIMENT.md`) | A-current | B-balanced | C-dense | D-dense-break-aware |
+|---|---|---|---|---|
+| Commentary in Rashi script (font fix) | | | | |
+| Biblical text readable (small / default / large) | | | | |
+| No ניקוד/טעמים collisions between lines | | | | |
+| Rashi readable (also D4) | | | | |
+| Verse → Rashi association obvious | | | | |
+| No ugly fragments at page ends | | | | |
+| No large blank areas | | | | |
+| Useful text per screen | | | | |
+| Comfortable over a longer read | | | | |
+| Scales cleanly when font size changes | | | | |
+| Chapter start looks right | | | | |
 
 *What the POC actually contains:* בראשית א׳:א׳–י׳, 10 verses, 17 Rashi entries across 9
 verses, and א׳:ג׳ deliberately has no Rashi — that is the "no empty commentary block" case
@@ -295,6 +337,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 | D7 | Sefaria index titles in `books.yaml` verified via API | **partial** — `Genesis` and `Rashi on Genesis` confirmed against the live API during fixture capture; the other 38 are still from SPEC §9 and are verified in Phase 2 | 2026-09-11 | `config/books.yaml` |
 | D8 | EPUB writer: hand-rolled (zipfile + Jinja2) vs `ebooklib` | **hand-rolled** — SPEC §32 admits `ebooklib` only if its output passes EPUBCheck *and* Kindle Previewer unmodified. Every file that matters here (OPF spine with `page-progression-direction`, the NCX kept beside the nav document, exact font media types) is one Kindle quirk away from needing a hand edit, and `zipfile` gives that control in ~100 lines. Passing EPUBCheck with 0 errors/0 warnings. | 2026-09-11 | `epub/builder.py` docstring |
 | D9 | How commentary sits in the page: inline / tap-to-open popup / `<details>` | **inline.** `<details>` and the noteref popup were both built and tested on the Paperwhite; a tap turns the page, so neither can work. | 2026-09-19 | `SPEC.md` §2, PROGRESS Phase 1 notes |
+| D10 | Layout profile: A-current / B-balanced / C-dense / D-dense-break-aware | **open (human)** — four candidates built from identical content; the Paperwhite decides. `layout.profile: current` (the control) until then. Also records whether the page-break hints visibly do anything on the device. | | `layout.profile`, `layout_profiles`, `docs/LAYOUT_EXPERIMENT.md` |
 
 ---
 
@@ -302,6 +345,7 @@ on the checklist. One chapter file of 18 KB — comfortably under the 300 KB gui
 
 | Date | Phase | Done | Next | Open questions for the human |
 |---|---|---|---|---|
+| 2026-09-19 (2) | 1 | Layout experiment (D10), at the human's request. Layout profiles in the config: `typography` gains line heights, and new `spacing` and `breaks` sections are overridden per profile. One renderer. The divider now has a single top rule in every build. New `experiment-layout` command builds A-current, B-balanced, C-dense and D-dense-break-aware from one load of the content, checks that only the stylesheet, title and identifier differ, and prints each variant's parameters and sizes. `build --layout-profile` added. Line heights checked against HarfBuzz-measured mark extents. 226 tests pass, ruff clean. Kindle Previewer 4 converts all four with 0 errors. EPUBCheck not run (no Java). | **(human)** sideload the four variants; answer the font question; fill in the layout table; decide D10. | 1. Which layout? 2. Do the page-break hints in D visibly change anything? 3. Amend SPEC §16 (one embedded family per stack)? |
 | 2026-09-19 | 1 | Reconciled with the abandoned `expandable-rashi-details` branch. D9 closed: `<details>` and popup both fail on the device because a tap turns the page; commentary stays inline, stated in SPEC §2. Re-applied the branch's entry-id fix (book slug, not lower-cased title) with a regression test for `I Samuel`. 163 tests pass, ruff clean. | **(human)** unchanged: confirm Rashi script on the device. Delete the remote branch if wanted. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 (one embedded family per stack)? |
 | 2026-09-11 (8) | 1 | **Cause found.** Round 7's two-paragraph diagnostic applies a second embedded font correctly on the device. Its rule names one embedded family plus a generic; `.commentary-text` named two — the only such rule in the stylesheet, and the only one that failed. `render_css` now emits one embedded family per stack followed by a generic, with two tests holding it there. Contradicts SPEC §16, which §0 settles in the device's favour. Rebuilt: EPUBCheck 0/0, 163 tests pass. | **(human)** confirm on the device that the commentary is now Rashi script; then D2/D3/D4 and the Phase 1 device table can all be closed. | 1. Is the commentary Rashi script now? 2. Amend SPEC §16 to "one embedded family per stack, then a generic"? 3. D9, the expandable commentary, is still parked — say when. |
 | 2026-09-11 (7) | 1 | Round 6 produced the fact that reframes the whole hunt: Hebrew rendered in an embedded font while Bookerly was selected and "Publisher Font" was not offered. Bookerly has no Hebrew, so the device was falling back to an embedded font to draw the script at all — font choice for Hebrew looks like its fallback logic, not our CSS, which would explain every earlier result (Rashi appeared exactly when Rashi was the `body` font). Cut the diagnostic down from ten mechanisms to two pages of two paragraphs and one yes/no question each, because the per-line format is what let round 4's flaw hide. EPUBCheck 0/0; 161 tests pass. | **(human)** sideload `output/Font_Diagnostic.epub`; report per page whether the two paragraphs look the same or different. | Same on both pages means one font for all Hebrew: D3 becomes `rashi_script: false`, SPEC §15's two-font premise needs rewording, and the unused Rashi font should stop being embedded rather than sit there as a second fallback candidate. |

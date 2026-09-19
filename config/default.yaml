@@ -71,6 +71,29 @@ typography:
                                  # false falls back to the biblical font (SPEC §15.2) —
                                  # the escape hatch if Rashi script proves illegible.
   dibur_hamatchil_in_biblical_font: true   # square, so the reader can scan for it
+  biblical_line_height: 1.9      # room for ניקוד above and טעמים below without collisions
+  rashi_line_height: 1.65
+
+# Vertical space, in em of the element it sits on (so the divider's margins scale with the
+# divider's own 0.85em). These are the values the stylesheet has always used.
+spacing:
+  study_unit: 1.1                # after a verse and all its commentary
+  verse: 0.35                    # below the verse text
+  divider_margin_top: 0.5
+  divider_padding_top: 0.15      # the rule → the label
+  divider_padding_bottom: 0.15
+  divider_margin_bottom: 0.4     # the label → the first entry
+  divider_align: center          # center | right (right is the start of the line in RTL)
+  entry: 0.4                     # between commentary entries
+  rashi_paragraph: 0.3           # between paragraphs inside one entry
+
+# Optional page-break hints — SPEC §27. Two hints are always on and not listed here:
+# verse + divider + first entry stay together, and a chapter heading stays with its text.
+# Every hint may be ignored by the reader; nothing depends on one being honoured.
+breaks:
+  keep_each_entry_together: false        # each later commentary entry avoids a split
+  keep_divider_with_neighbours: false    # no page break just before or after the divider
+  keep_book_heading_with_next: false     # the book title stays with the chapter heading
 
 navigation:
   include_sections: false        # flat entries only if true (Kindle: max 2 nested levels)
@@ -81,6 +104,88 @@ layout:
   file_per: chapter
   max_file_kb: 300
   page_break_before_book: true
+  profile: current               # OPEN (D10) — which of layout_profiles a normal build uses
+
+# Layout experiment — see docs/LAYOUT_EXPERIMENT.md. Four candidates built from identical
+# content by `python -m tanakh_epub experiment-layout`, for the Paperwhite to choose between.
+# Each profile overrides keys of `typography` (sizes and line heights only), `spacing` and
+# `breaks` above; anything it does not name keeps the value above. No profile can change a
+# font or the content. The software does not rank them — the device test does (D10).
+#
+# Line heights were checked against the embedded fonts, not guessed: shaped with the fonts'
+# own OpenType positioning, the tallest mark in Taamey Frank CLM reaches 0.93em above the
+# baseline and the lowest 0.31em below, 1.24em of ink in all. 1.6 is the lowest biblical
+# line height used, which leaves at least 0.36em between the worst-case marks of adjacent
+# lines. Noto Rashi Hebrew needs 1.13em; 1.42 is the lowest Rashi line height used.
+layout_profiles:
+  current:
+    label: A-current
+    hebrew_label: "פריסה א׳"
+    description: >
+      Control. The stylesheet as it was, with one change every profile shares: the divider
+      has a single rule above the label, not one above and one below.
+
+  balanced:
+    label: B-balanced
+    hebrew_label: "פריסה ב׳"
+    description: >
+      A modest step. Smaller biblical text and tighter leading, but the Rashi size is left
+      at 0.9 (D4 has not been checked on the device yet); less space between units; the
+      divider label at the start of the line under its rule.
+    typography:
+      biblical_scale: 1.15
+      verse_number_scale: 0.72
+      divider_scale: 0.8
+      biblical_line_height: 1.75
+      rashi_line_height: 1.5
+    spacing:
+      study_unit: 0.75
+      verse: 0.3
+      divider_margin_top: 0.4
+      divider_padding_top: 0.12
+      divider_padding_bottom: 0
+      divider_margin_bottom: 0.25
+      divider_align: right
+      entry: 0.25
+      rashi_paragraph: 0.2
+
+  dense:
+    label: C-dense
+    hebrew_label: "פריסה ג׳"
+    description: >
+      Noticeably denser: biblical line pitch about a quarter shorter than A, Rashi a little
+      smaller, compact spacing. Same page-break hints as A and B, so C against D isolates
+      the effect of the hints.
+    typography:
+      biblical_scale: 1.1
+      rashi_scale: 0.86
+      verse_number_scale: 0.7
+      divider_scale: 0.78
+      biblical_line_height: 1.6
+      rashi_line_height: 1.42
+    spacing:
+      study_unit: 0.55
+      verse: 0.2
+      divider_margin_top: 0.3
+      divider_padding_top: 0.08
+      divider_padding_bottom: 0
+      divider_margin_bottom: 0.18
+      divider_align: right
+      entry: 0.15
+      rashi_paragraph: 0.12
+
+  dense_break_aware:
+    label: D-dense-break-aware
+    hebrew_label: "פריסה ד׳"
+    description: >
+      C's typography and spacing exactly, plus every optional page-break hint: each Rashi
+      entry avoids splitting, the divider stays with its verse and its first entry, and
+      the book title stays with the chapter heading. The study unit as a whole still splits.
+    extends: dense
+    breaks:
+      keep_each_entry_together: true
+      keep_divider_with_neighbours: true
+      keep_book_heading_with_next: true
 
 cover:
   mode: none                     # none | generated | custom — generated cover lands in Phase 3 (3.5)

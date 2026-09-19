@@ -38,6 +38,7 @@ python -m tanakh_epub inventory-markup
 python -m tanakh_epub validate
 python -m tanakh_epub build --chapter Genesis 1 --output output/Genesis_Chapter_1.epub
 python -m tanakh_epub check output/Genesis_Chapter_1.epub     # EPUBCheck (+ Kindle Previewer if installed)
+python -m tanakh_epub experiment-layout --chapter Genesis 1   # 4 layout variants, same content (docs/LAYOUT_EXPERIMENT.md)
 pytest                                     # network tests skipped unless RUN_NETWORK_TESTS=1
 ruff check . && ruff format .
 ```

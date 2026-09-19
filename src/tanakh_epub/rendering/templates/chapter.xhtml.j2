@@ -1,10 +1,12 @@
 {#-
   One chapter — SPEC.md §11, §12, §13, §17, §18.
 
-  Structure follows §13, which supersedes §12.2's whole-unit wrapper: only a small
-  `keep-together` block (verse + divider + first commentary entry) carries the page-break
-  hint. Kindle ignores the hint entirely, and readers that honour it would otherwise leave
-  a blank page before a Rashi that runs for several screens.
+  Structure follows §13, which supersedes §12.2's whole-unit wrapper: a small
+  `keep-together` block (verse + divider + first commentary entry) asks not to be split,
+  and every later entry is its own `commentary-entry` element, so a layout profile can ask
+  the same of each one separately. The study unit as a whole never carries the hint:
+  readers that honour it would leave a blank page before a Rashi that runs for several
+  screens. The markup is identical for every layout profile; only the stylesheet differs.
 
   The verse and each commentary entry arrive as internal markup that markup.py has already
   escaped; every other value is autoescaped by Jinja.
