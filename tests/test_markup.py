@@ -8,6 +8,7 @@ import pytest
 
 from tanakh_epub.paths import FIXTURES_DIR
 from tanakh_epub.processing.markup import (
+    PARAGRAPH_SEPARATOR,
     InternalMarkupError,
     UnknownMarkupError,
     assert_internal_markup_only,
@@ -77,8 +78,8 @@ def test_unknown_tag_fails_the_build() -> None:
 def test_known_tag_with_an_unknown_class_fails_the_build() -> None:
     """On MAM spans the class carries the whole meaning; ignoring it loses content."""
     with pytest.raises(UnknownMarkupError) as excinfo:
-        convert_verse('<span class="mam-kq-q">קרי</span>', reference=REF)
-    assert "mam-kq-q" in str(excinfo.value)
+        convert_verse('<span class="mam-not-a-real-class">קרי</span>', reference=REF)
+    assert "mam-not-a-real-class" in str(excinfo.value)
 
 
 def test_unexpected_attribute_fails_the_build() -> None:
@@ -129,3 +130,62 @@ def test_every_fixture_rashi_entry_converts_and_keeps_its_dibur_hamatchil() -> N
             assert entry.dibur_hamatchil, reference
             entries += 1
     assert entries == 55
+
+
+# ---- Rules added from the Phase 2 inventory of Genesis ------------------------------
+# The inputs are real strings from Genesis (MAM) and Rashi on Genesis, cut to the part
+# that matters.
+
+
+def test_open_parasha_marker_is_kept_and_does_not_end_the_paragraph() -> None:
+    raw = 'עָקֵֽב׃&nbsp;<span class="mam-spi-samekh">{ס}</span>&nbsp;&nbsp;'
+    out = convert_verse(raw, reference="Genesis 3:15")
+    assert '<span class="parasha-marker">{ס}</span>' in out
+    assert PARAGRAPH_SEPARATOR not in out
+
+
+def test_ketiv_qere_keeps_both_readings_and_their_brackets() -> None:
+    raw = (
+        'הָאָ֖רֶץ <span class="mam-kq"><span class="mam-kq-k">(הוצא)</span> '
+        '<span class="mam-kq-q">[הַיְצֵ֣א]</span></span> אִתָּ֑ךְ'
+    )
+    out = convert_verse(raw, reference="Genesis 8:17")
+    assert out == "הָאָ֖רֶץ (הוצא) [הַיְצֵ֣א] אִתָּ֑ךְ"
+
+
+def test_trivial_ketiv_qere_keeps_the_word() -> None:
+    raw = 'שָׁ֤ם <span class="mam-kq-trivial">אׇֽהֳלֹה֙</span> בַּתְּחִלָּ֔ה'
+    assert convert_verse(raw, reference="Genesis 13:3") == "שָׁ֤ם אׇֽהֳלֹה֙ בַּתְּחִלָּ֔ה"
+
+
+def test_unwrapped_span_inside_bold_stays_inside_the_bold() -> None:
+    out = convert_verse('<b>א<span class="mam-kq-trivial">ב</span>ג</b>', reference=REF)
+    assert out == "<b>אבג</b>"
+
+
+def test_mam_footnote_is_dropped_with_its_content() -> None:
+    raw = (
+        'מִנְּשֹֽׂא<sup class="footnote-marker">*</sup><i class="footnote">(בספרי ספרד ואשכנז מִנְּשֽׂוֹא)</i>׃'
+    )
+    assert convert_verse(raw, reference="Genesis 4:13") == "מִנְּשֹֽׂא׃"
+
+
+def test_footnote_with_nested_markup_is_dropped_whole() -> None:
+    raw = (
+        'סֵ֗פֶר<sup class="footnote-marker">*</sup>'
+        '<i class="footnote">(בספרי תימן <big>סֵ֔</big>פֶר בסמ״ך גדולה)</i> תּֽוֹלְדֹ֖ת'
+    )
+    assert convert_verse(raw, reference="Genesis 5:1") == "סֵ֗פֶר תּֽוֹלְדֹ֖ת"
+
+
+def test_small_inside_a_rashi_entry() -> None:
+    raw = '<b>המול ימול.</b> לְאַחַר (<small>ס"א</small> לְאֶחָד) כְּמוֹ'
+    entry = convert_commentary_entry(raw, reference="Rashi on Genesis 17:13:1")
+    assert entry.dibur_hamatchil == "המול ימול."
+    assert '(<span class="letter-small">ס"א</span> לְאֶחָד)' in entry.text
+
+
+def test_an_italic_without_the_footnote_class_is_still_unknown() -> None:
+    """`<i>` alone has not been seen yet; only MAM's footnote class has a rule."""
+    with pytest.raises(UnknownMarkupError):
+        convert_verse("<i>x</i>", reference=REF)

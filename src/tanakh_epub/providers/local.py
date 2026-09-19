@@ -34,6 +34,8 @@ class _Dataset:
     text: list
     source: SourceInfo
     chapters_included: tuple[int, ...]
+    index_lengths: tuple[int, ...] | None
+    """Sefaria's own counts for the index, recorded at fetch time; absent in fixtures."""
 
     def chapter(self, number: int) -> list:
         if number not in self.chapters_included:
@@ -94,14 +96,15 @@ def _load(path: Path) -> _Dataset:
             checked=raw.get("fetched_at"),
         ),
         chapters_included=tuple(int(c) for c in included),
+        index_lengths=tuple(raw["index_lengths"]) if raw.get("index_lengths") else None,
     )
 
 
 class LocalProvider:
     """Serves whole books out of one directory of JSON files.
 
-    ``roots`` are searched in order, so a real cache entry shadows a fixture once Phase 2
-    has fetched the book for real.
+    ``roots`` are searched in order. The default puts the cache first, so a book fetched
+    from Sefaria shadows its one-chapter fixture; the test suite passes the fixtures alone.
     """
 
     def __init__(
@@ -111,7 +114,7 @@ class LocalProvider:
         books: BookTable | None = None,
         expected_versions: dict[str, str] | None = None,
     ) -> None:
-        self.roots = roots or [FIXTURES_DIR, CACHE_DIR]
+        self.roots = roots or [CACHE_DIR, FIXTURES_DIR]
         self.books = books or default_books()
         self.expected_versions = expected_versions or {}
         self._cache: dict[Path, _Dataset] = {}
@@ -177,6 +180,12 @@ class LocalProvider:
 
     def text_source(self, book: str) -> SourceInfo:
         return self._dataset(book, None).source
+
+    def index_lengths(self, book: str, commentator: str | None = None) -> tuple[int, ...] | None:
+        return self._dataset(book, commentator).index_lengths
+
+    def dataset_path(self, book: str, commentator: str | None = None) -> Path:
+        return self._dataset(book, commentator).path
 
     def available_chapters(self, book: str) -> tuple[int, ...]:
         return self._dataset(book, None).chapters_included

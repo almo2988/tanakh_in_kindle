@@ -7,9 +7,9 @@ commentary, for reading on a **Kindle Paperwhite (12th gen, 2024)**. All content
 Reading content is **Hebrew only**. English appears in filenames, logs, config and the
 version identifiers the source licenses require you to name — never in the book itself.
 
-> **Status: Phase 1 (proof of concept).** The build runs from checked-in fixtures —
-> בראשית פרק א׳ with רש״י — and needs no network. Fetching the real Tanakh from Sefaria is
-> Phase 2. `PROGRESS.md` is the authority on what is done and what is next.
+> **Status: Phase 2 (Sefaria provider).** Full בראשית with רש״י is fetched from Sefaria,
+> validated and built. The rest of the Tanakh is Phase 3. `PROGRESS.md` is the authority on
+> what is done and what is next.
 
 ---
 
@@ -17,17 +17,28 @@ version identifiers the source licenses require you to name — never in the boo
 
 ```sh
 uv sync                       # or: python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 \
-    --output output/Genesis_Chapter_1.epub
-python -m tanakh_epub check output/Genesis_Chapter_1.epub
+python -m tanakh_epub fetch --book Genesis        # whole books from Sefaria into data/cache/
+python -m tanakh_epub inventory-markup --book Genesis
+python -m tanakh_epub validate --book Genesis
+python -m tanakh_epub build --book Genesis        # → output/Genesis.epub
+python -m tanakh_epub check output/Genesis.epub
 ```
 
-`check` runs EPUBCheck, and Kindle Previewer 3 as well if it is installed. Neither is
+`fetch` is the only command that uses the network. It reads Sefaria's public export
+bucket, falls back to the API, and skips a book already cached in the configured version.
+Everything else reads the cache, so builds work offline. A book that was never fetched
+falls back to the checked-in fixtures (בראשית א׳ only), so this still works with no network:
+
+```sh
+python -m tanakh_epub build --chapter Genesis 1 --max-verse 10 --output output/Genesis_Chapter_1.epub
+```
+
+`check` runs EPUBCheck, and Kindle Previewer as well if it is installed. Neither is
 required to build; both say "SKIPPED" rather than quietly passing when absent.
 
 Requires Python 3.12+. `scripts/epubcheck.sh` downloads EPUBCheck into `tools/` on first
-use (needs Java); `scripts/kindle_previewer.sh` cannot install Kindle Previewer, which is
-macOS/Windows only.
+use. It needs Java; on a Mac without a JDK it uses the Java bundled inside Kindle Previewer.
+Kindle Previewer itself is macOS/Windows only and cannot be installed by a script.
 
 ```sh
 pytest                        # offline; network tests skipped unless RUN_NETWORK_TESTS=1
@@ -36,8 +47,9 @@ ruff check . && ruff format .
 
 ### Layout experiment
 
-The page layout is not settled yet. One command builds the same content with three layouts,
-for comparison on the Paperwhite:
+The layout was chosen on the Paperwhite: C-dense (decision D10), which every build now uses.
+The comparison command is kept for future changes. It builds the same content with each
+layout:
 
 ```sh
 python -m tanakh_epub experiment-layout --chapter Genesis 1
@@ -105,9 +117,11 @@ table in `PROGRESS.md`. The short version:
 ## How it fits together
 
 ```
-Sefaria API                 (Phase 2; Phase 1 uses the captured fixtures)
+Sefaria export / API        fetch only: whole books, never single verses
       ↓
-providers/                  whole books in, never single verses
+data/cache/                 the text verbatim, with version, license and Sefaria's counts
+      ↓
+providers/local.py          everything after fetch reads the cache
       ↓
 processing/markup.py        explicit rules; unknown markup fails the build
 processing/normalize.py     NFC only — never strips ניקוד or טעמים
@@ -126,6 +140,7 @@ epub/                       OPF · nav.xhtml · toc.ncx · zip
 | `config/books.yaml` | the 39 books: Sefaria title, Hebrew title, slug, section |
 | `config/default.yaml` | fonts, typography, spacing, page-break hints, layout profiles, sources — every tunable |
 | `config/commentators.yaml` | Hebrew label, slug and Sefaria prefix per commentator |
+| `data/cache/` | fetched books (git-ignored) |
 | `tests/fixtures/` | real Sefaria data, captured once by `scripts/capture_fixtures.py` |
 | `fonts/` | only fonts whose license has been read and recorded |
 | `docs/` | notes that outlive a session |
@@ -138,14 +153,15 @@ we are) → `SPEC.md` and `SPEC_DATA_SOURCE.md` (what to build).
 ## Content and licensing
 
 Texts come from Sefaria under the versions named in `config/default.yaml`, and the built
-EPUB reproduces those names and licenses on its מקורות page. The Phase 1 fixtures hold:
+EPUB reproduces those names and licenses on its מקורות page. Currently:
 
 | | Version | License |
 |---|---|---|
 | Tanakh | *Miqra according to the Masorah* | CC BY-SA |
 | Rashi | *Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929–1934* | Public Domain |
 
-Both are provisional until decisions D5 and D6 in `PROGRESS.md`.
+Both are awaiting confirmation (decisions D5 and D6 in `PROGRESS.md`); the candidates are
+compared in `docs/VERSION_SELECTION.md`.
 
 Two fonts are embedded, each with its license read and recorded in `fonts/README.md`:
 **Taamey Frank CLM** for the biblical text (GPL-2.0 with the Culmus font-embedding

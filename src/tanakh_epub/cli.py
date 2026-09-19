@@ -1,10 +1,9 @@
 """Command line interface — SPEC.md §31.
 
-Phase 1 implements ``build``, ``check`` and ``experiment-layout`` (one EPUB per layout
-profile, for the device to choose between — docs/LAYOUT_EXPERIMENT.md). ``fetch``, ``validate`` and
-``inventory-markup`` belong to the Sefaria provider and land in Phase 2; they are listed
-here so ``--help`` tells the truth about what does and does not exist yet, and so running
-one gives a pointer rather than an ``unknown command``.
+``fetch`` is the only command that touches the network: it fills ``data/cache/`` from
+Sefaria. Everything else — ``inventory-markup``, ``validate``, ``build``,
+``experiment-layout`` — reads the cache (falling back to the checked-in fixtures for a book
+that has not been fetched), so a build works offline once the books are cached.
 """
 
 from __future__ import annotations
@@ -20,16 +19,17 @@ from .books import BookTable, load_books
 from .config import Config, load_config
 from .epub.builder import EpubBuilder
 from .layout_experiment import build_variants, content_differences, format_report
-from .paths import PROJECT_ROOT
+from .paths import CACHE_DIR, PROJECT_ROOT
+from .processing.inventory import Inventory, format_inventory, scan
 from .processing.study_units import ChapterSelection, load_chapters, stats
+from .processing.validation import format_report as format_validation
+from .processing.validation import validate
+from .providers.base import ProviderError
+from .providers.fetch import fetch_book
 from .providers.local import LocalProvider
+from .providers.sefaria import SefariaClient, SefariaProvider
+from .rendering.html_renderer import ChapterRenderer
 from .validation_tools import ToolResult, run_epubcheck, run_kindle_previewer
-
-PHASE_2_COMMANDS = {
-    "fetch": "2.3",
-    "validate": "2.8",
-    "inventory-markup": "2.5",
-}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -80,8 +80,35 @@ def _parser() -> argparse.ArgumentParser:
         "--kindle-output", type=Path, default=None, help="where Kindle Previewer writes the KPF"
     )
 
-    for name in PHASE_2_COMMANDS:
-        subparsers.add_parser(name, help=f"(Phase {PHASE_2_COMMANDS[name][0]}) not implemented yet")
+    fetch = subparsers.add_parser(
+        "fetch",
+        help="fetch whole books from Sefaria into data/cache/",
+        description="Fill data/cache/ with the configured Tanakh and commentary versions. "
+        "A cached book in the configured version is skipped unless refreshed.",
+    )
+    fetch.add_argument("--config", type=Path, default=None)
+    fetch.add_argument("--book", metavar="BOOK", help="one book, by its Sefaria title")
+    fetch.add_argument("--books", nargs="+", metavar="BOOK", help="several books")
+    fetch.add_argument("--refresh", action="store_true", help="re-fetch the selected books")
+    fetch.add_argument("--refresh-all", action="store_true", help="re-fetch every book")
+    fetch.add_argument(
+        "--prefer",
+        choices=("export", "api"),
+        default="export",
+        help="which Sefaria source to try first (default: the Sefaria-Export bucket)",
+    )
+    fetch.add_argument("--cache-dir", type=Path, default=None, help=argparse.SUPPRESS)
+
+    for name, summary in (
+        ("inventory-markup", "count every tag, class and entity in the cached data"),
+        ("validate", "check the cached data is complete and convertible"),
+    ):
+        sub = subparsers.add_parser(name, help=summary, description=summary)
+        sub.add_argument("--config", type=Path, default=None)
+        sub.add_argument("--book", metavar="BOOK")
+        sub.add_argument("--books", nargs="+", metavar="BOOK")
+        sub.add_argument("--output", type=Path, default=None, help="also write the report here")
+        sub.add_argument("--cache-dir", type=Path, default=None, help=argparse.SUPPRESS)
 
     return parser
 
@@ -140,24 +167,32 @@ def _selections(args, config: Config, books: BookTable) -> tuple[list[ChapterSel
     )
 
 
+def _expected_versions(config: Config) -> dict[str, str]:
+    return {
+        "tanakh": config.tanakh_source.version_title,
+        **{name: source.version_title for name, source in config.commentary_sources.items()},
+    }
+
+
+def _titles(args, books: BookTable) -> list[str]:
+    titles = args.books or ([args.book] if args.book else None)
+    if titles:
+        return [books.by_title(t).sefaria_title for t in titles]
+    return [book.sefaria_title for book in books]
+
+
 def _load_content(args, config: Config, books: BookTable):
     """The requested chapters as the internal model, or ``None`` if there is no local
     data for any of them."""
-    provider = LocalProvider(
-        books=books,
-        expected_versions={
-            "tanakh": config.tanakh_source.version_title,
-            **{name: source.version_title for name, source in config.commentary_sources.items()},
-        },
-    )
+    provider = LocalProvider(books=books, expected_versions=_expected_versions(config))
 
     selections, default_name = _selections(args, config, books)
     available = set(provider.get_books())
     selections = [s for s in selections if s.book.sefaria_title in available]
     if not selections:
         print(
-            "No local data for the requested books. Phase 1 builds from tests/fixtures/; "
-            "run `python -m tanakh_epub fetch` once Phase 2 lands.",
+            "No local data for the requested books. Run `python -m tanakh_epub fetch --book "
+            "<title>` first.",
             file=sys.stderr,
         )
         return None
@@ -327,17 +362,102 @@ def cmd_check(args) -> int:
     return 1 if failed else 0
 
 
+def cmd_fetch(args) -> int:
+    config = load_config(args.config)
+    books = load_books()
+    cache_dir = args.cache_dir or CACHE_DIR
+    titles = _titles(args, books)
+    provider = SefariaProvider(SefariaClient(), prefer=args.prefer)
+
+    failed = False
+    for title in titles:
+        book = books.by_title(title)
+        for outcome in fetch_book(
+            provider,
+            config,
+            book,
+            cache_dir=cache_dir,
+            refresh=args.refresh or args.refresh_all,
+        ):
+            where = f"  → {_shown(outcome.path)}" if outcome.path else ""
+            detail = f"  {outcome.detail}" if outcome.detail else ""
+            print(f"{outcome.status:8} {outcome.label}{where}{detail}")
+            failed = failed or outcome.status == "failed"
+    print(f"\n{len(provider.client.requests)} request(s) to Sefaria.")
+    return 1 if failed else 0
+
+
+def _cached_titles(args, config: Config, books: BookTable, cache_dir: Path):
+    """The selected books that are in the cache — a validate or inventory over fixtures
+    would describe the fixtures, not the data a build will use."""
+    provider = LocalProvider([cache_dir], books=books, expected_versions=_expected_versions(config))
+    wanted = _titles(args, books)
+    have = set(provider.get_books())
+    missing = [t for t in wanted if t not in have]
+    explicit = bool(args.books or args.book)
+    return provider, [t for t in wanted if t in have], (missing if explicit else [])
+
+
+def _emit(report: str, output: Path | None) -> None:
+    print(report, end="")
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report, encoding="utf-8")
+        print(f"Report written to {_shown(output)}")
+
+
+def cmd_inventory(args) -> int:
+    config = load_config(args.config)
+    books = load_books()
+    provider, titles, missing = _cached_titles(args, config, books, args.cache_dir or CACHE_DIR)
+    if missing or not titles:
+        print(
+            f"Not cached: {', '.join(missing) or 'any book'}. Run `fetch` first.", file=sys.stderr
+        )
+        return 1
+    inventory = Inventory()
+    try:
+        for title in titles:
+            scan(inventory, title, provider.get_book_text(title))
+            for name in config.commentaries:
+                if provider.has_commentary(name, title):
+                    label = config.commentator(name).index_title(title)
+                    scan(inventory, label, provider.get_book_commentary(name, title))
+    except ProviderError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    _emit(format_inventory(inventory), args.output)
+    return 1 if inventory.unknown else 0
+
+
+def cmd_validate(args) -> int:
+    config = load_config(args.config)
+    books = load_books()
+    provider, titles, missing = _cached_titles(args, config, books, args.cache_dir or CACHE_DIR)
+    if missing or not titles:
+        print(
+            f"Not cached: {', '.join(missing) or 'any book'}. Run `fetch` first.", file=sys.stderr
+        )
+        return 1
+    renderer = ChapterRenderer(config, books)
+
+    def render(chapters):
+        return [(c.filename, c.size_bytes) for c in renderer.render_all(chapters)]
+
+    reports = validate(provider, config, books, titles, render=render)
+    _emit(format_validation(reports, config, books), args.output)
+    return 0 if all(r.ok for r in reports) else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
 
-    if args.command in PHASE_2_COMMANDS:
-        task = PHASE_2_COMMANDS[args.command]
-        print(
-            f'"{args.command}" is Phase 2, task {task} (see PROGRESS.md). '
-            f"Phase 1 builds from the checked-in fixtures in tests/fixtures/.",
-            file=sys.stderr,
-        )
-        return 2
+    if args.command == "fetch":
+        return cmd_fetch(args)
+    if args.command == "inventory-markup":
+        return cmd_inventory(args)
+    if args.command == "validate":
+        return cmd_validate(args)
 
     if args.command == "build":
         return cmd_build(args)

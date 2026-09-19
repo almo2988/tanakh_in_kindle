@@ -11,10 +11,10 @@ the reference that produced it. Silently stripping an unknown tag is how a paras
 a ניקוד-bearing letter, or half a verse disappears without anyone noticing (CLAUDE.md
 non-negotiable 6).
 
-Phase 1 scope: the table below covers exactly the patterns present in the checked-in
-fixtures, and nothing else — an untested rule is worse than a loud failure. Phase 2 runs
-``inventory-markup`` over the full dataset and extends the table from what it finds
-(PROGRESS.md task 2.6).
+Scope: the table below covers exactly the patterns ``inventory-markup`` found in the
+cached data for the configured versions (Genesis and Rashi on Genesis in Phase 2), and
+nothing else — an untested rule is worse than a loud failure. Each new book is inventoried
+before it is built, and the table grows from what it finds (docs/MARKUP_RULES.md).
 
 Internal markup (SPEC_DATA_SOURCE.md §9.3) is a closed subset: ``<b>``, ``<em>``,
 ``<span class="letter-large|letter-small|parasha-marker">``, and paragraph breaks written
@@ -54,6 +54,7 @@ class Rule:
       ``keep``      emit the same tag (its name must already be internal markup)
       ``rename``    emit ``tag`` instead
       ``wrap``      emit ``<span class="{css_class}">``
+      ``unwrap``    discard the tag, keep its content
       ``paragraph`` a void tag that ends the current paragraph
       ``drop``      discard the element **and its content**
     """
@@ -78,7 +79,29 @@ RULES: dict[tuple[str, str | None], Rule] = {
     ("span", "mam-spi-pe"): Rule(
         "wrap", tag="span", css_class="parasha-marker", note="closed parasha marker {פ}"
     ),
+    ("span", "mam-spi-samekh"): Rule(
+        "wrap",
+        tag="span",
+        css_class="parasha-marker",
+        note="open parasha marker {ס}; unlike {פ} it does not end the paragraph",
+    ),
+    # כתיב/קרי. MAM writes the כתיב unvocalized in parentheses and the קרי vocalized in
+    # brackets, inside the text itself — `(הוצא) [הַיְצֵ֣א]` — the way printed Tanakhs do.
+    # The brackets carry the meaning, so the spans are removed and the text kept whole.
+    ("span", "mam-kq"): Rule("unwrap", note="כתיב/קרי pair; the text carries ( ) and [ ]"),
+    ("span", "mam-kq-k"): Rule("unwrap", note="כתיב, in parentheses in the text"),
+    ("span", "mam-kq-q"): Rule("unwrap", note="קרי, in brackets in the text"),
+    ("span", "mam-kq-trivial"): Rule(
+        "unwrap", note="a כתיב/קרי difference MAM prints as one vocalized word"
+    ),
+    # MAM's editorial notes on other manuscript traditions: an asterisk and a note in
+    # parentheses, inside the verse. Dropped with their content — SPEC_DATA_SOURCE §9.2.
+    ("sup", "footnote-marker"): Rule("drop", note="MAM footnote asterisk"),
+    ("i", "footnote"): Rule("drop", note="MAM footnote text, e.g. a Yemenite reading"),
     ("br", None): Rule("paragraph", note="paragraph break"),
+    # ---- Rashi — Rosenbaum & Silbermann ----------------------------------
+    # `<small>` also appears once in Rashi on Genesis (17:13:1), around ס"א ("another
+    # version") inside parentheses. Same rule as in the Tanakh: small text.
     # ---- Both ------------------------------------------------------------
     # A <b> leading a commentary entry is the dibur hamatchil and is extracted before this
     # table is consulted. Every other <b> — the bold paseq in Genesis 1:29–30, a bold run
@@ -136,13 +159,19 @@ class _Converter(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.reference = reference
         self.nodes: list[Node] = []
-        self._open: list[tuple[str, Element]] = []
+        self._open: list[tuple[str, Element | None]] = []
+        """Open source tags, innermost last. ``None`` marks an unwrapped tag: it is tracked
+        so its close tag pairs correctly, but its content goes to the enclosing element."""
         self._dropping: list[str] = []
 
     # -- helpers ----------------------------------------------------------
 
+    def _container(self) -> Element | None:
+        return next((element for _, element in reversed(self._open) if element), None)
+
     def _append(self, node: Node) -> None:
-        (self._open[-1][1].children if self._open else self.nodes).append(node)
+        container = self._container()
+        (container.children if container else self.nodes).append(node)
 
     def _unknown(self, tag: str, css_class: str | None, extra: str = "") -> None:
         described = f"<{tag}" + (f' class="{css_class}"' if css_class else "") + ">"
@@ -172,7 +201,7 @@ class _Converter(HTMLParser):
         rule = self._rule(tag, attrs)
 
         if rule.action == "paragraph":
-            if self._open:
+            if self._container():
                 self._unknown(
                     tag,
                     None,
@@ -184,6 +213,11 @@ class _Converter(HTMLParser):
         if rule.action == "drop":
             if not (self_closing or tag in VOID_TAGS):
                 self._dropping.append(tag)
+            return
+
+        if rule.action == "unwrap":
+            if not (self_closing or tag in VOID_TAGS):
+                self._open.append((tag, None))
             return
 
         element = Element(

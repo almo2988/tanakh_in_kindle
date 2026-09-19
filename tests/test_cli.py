@@ -58,11 +58,11 @@ def test_check_on_a_missing_file_fails(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("command", ["fetch", "validate", "inventory-markup"])
-def test_phase_two_commands_say_so(command: str, capsys) -> None:
-    """A pointer beats an `unknown command` for a command the spec lists but Phase 1
-    does not implement."""
-    assert main([command]) == 2
-    assert "Phase 2" in capsys.readouterr().err
+def test_phase_two_commands_exist(command: str, capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main([command, "--help"])
+    assert excinfo.value.code == 0
+    assert "--book" in capsys.readouterr().out
 
 
 def test_unknown_book_fails_loudly() -> None:
